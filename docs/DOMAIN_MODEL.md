@@ -1,7 +1,14 @@
 # DOMAIN MODEL — Personal Intelligence OS
 
-Статус: Milestone 0 (Discovery)
-Версия документа: 0.1.0
+Статус: Milestone 0 (Discovery) — пересмотрено после архитектурного аудита
+Версия документа: 0.2.0
+
+> Примечание после аудита: поля сущностей, реализуемых начиная с
+> Milestone 2 (Goal, Mission, Task, Event), имеют высокую уверенность.
+> Поля сущностей, реализация которых запланирована на Milestone 8–9
+> (MemoryRecord, Skill), приведены с низкой уверенностью — они
+> ориентировочные и подлежат пересмотру при реализации; не читайте их как
+> зафиксированный контракт наравне с Mission/Task.
 
 Этот документ фиксирует доменную модель на уровне контракта: сущности,
 статусы, переходы, события, доказательства. Реализация (TS-типы + Zod-схемы
@@ -72,8 +79,16 @@ stopConditions, currentPhase, createdAt, startedAt, completedAt, version`.
 
 `budget` — обязательная структура с лимитами (не опция):
 `maxModelCalls, maxToolCalls, maxDurationMs, maxEstimatedCostUsd,
-maxCorrectionLoops`. Превышение любого лимита — управляемый переход в
-`failed` с Evidence о причине, никогда не бесконечный цикл.
+maxCorrectionLoops, maxConcurrentAgentJobs, maxAgentJobDepth`. Превышение
+любого лимита — управляемый переход в `failed` с Evidence о причине,
+никогда не бесконечный цикл.
+
+Последние два поля (`maxConcurrentAgentJobs`, `maxAgentJobDepth`) добавлены
+после архитектурного аудита Milestone 0 — до этого в схеме не было
+architectural-инварианта против неконтролируемого порождения вложенных
+субагентов (см. §5, §15, `ADR-009`). Реализуются вместе с AgentJob на
+Milestone 6, но резервируются в схеме `Mission.budget` уже с Milestone 2,
+чтобы не потребовать ломающей миграции позже.
 
 ## 3. MissionContract
 
@@ -85,7 +100,17 @@ maxCorrectionLoops`. Превышение любого лимита — упра
 
 Поля: `statedRequest, inferredGoal, expectedDeliverables, successCriteria,
 constraints, assumptions, unknowns, risks, allowedAutonomy,
-requiredApprovals, evidenceRequirements, budget, stopConditions`.
+requiredApprovals, evidenceRequirements, budget, stopConditions,
+contractVersion`.
+
+`contractVersion` — добавлено после аудита: целое число, увеличивающееся
+на единицу при каждой перегенерации контракта в рамках одной Mission
+(ревизия документа). Это отдельное понятие от `schemaVersion`, который
+несут события (`DOMAIN_MODEL.md` §12) — `schemaVersion` описывает версию
+*формы* данных (эволюцию Zod-схемы между релизами приложения),
+`contractVersion` описывает *ревизию содержимого* внутри одной миссии.
+До аудита оба смысла были смешаны под словом «версия», что создавало риск
+путаницы при реализации.
 
 `assumptions` обязаны быть непустыми, если контракт создан без уточняющего
 вопроса владельцу при наличии неизвестных — это прямое отражение принципа
@@ -114,10 +139,28 @@ rejected → failed                        (если лимит исчерпан
 Поля: `id, missionId, parentTaskId, title, description, taskType, status,
 dependencies, assignedAgentJobId, inputArtifactIds, outputArtifactIds,
 successCriteria, evidenceRequirements, maxAttempts, attemptCount, timeout,
-budget, createdAt, updatedAt`.
+budget, version, createdAt, updatedAt`.
 
 `dependencies` — список `taskId`, задача переходит в `ready` только когда
 все зависимости `completed`.
+
+`version` — добавлено после аудита для оптимистичной блокировки
+(optimistic concurrency control): любое обновление Task обязано сверить и
+увеличить `version`, конфликтующая параллельная запись (например,
+одновременное поступление `Evidence` от tool call и отмена задачи)
+завершается доменной ошибкой конфликта версий, а не молчаливой
+перезаписью. До аудита это поле было только у Mission, хотя у Task
+конкурентные записи (tool calls, evidence) реалистичнее.
+
+**Retry на двух разных уровнях** (разведено после аудита, ранее не было
+явного различия): `attemptCount`/`maxAttempts` на Task — это
+*семантический* retry с перепланированием (после отклонения Verifier или
+провала задачи в целом создаётся новый `AgentJob`). Он отличается от
+*механического* retry на уровне отдельного вызова инструмента
+(`Tool.retryPolicy`, см. `ARCHITECTURE.md` §5) — повтора транзиентной
+сетевой/временной ошибки самого вызова, не требующего переосмысления
+задачи. Смешивание этих двух механизмов в одном счётчике было бы ошибкой:
+транзиентный сбой инструмента не должен расходовать `attemptCount` Task.
 
 ## 5. AgentJob
 
@@ -128,17 +171,47 @@ budget, createdAt, updatedAt`.
 `AgentJob` не имеет собственного цикла retry — retry живёт на уровне Task
 (новый AgentJob создаётся заново с урезанным/уточнённым контекстом).
 
-Поля: `id, missionId, taskId, role, mission, systemInstructions,
-contextPolicy, selectedCapabilities, allowedToolIds, forbiddenToolIds,
-modelCapability, modelConfiguration, tokenBudget, monetaryBudget,
-maxSteps, outputSchema, successCriteria, evidenceRequirements, status,
-createdAt, completedAt`.
+Поля: `id, missionId, taskId, parentAgentJobId, role, mission,
+systemInstructions, contextPolicy, selectedCapabilities, allowedToolIds,
+forbiddenToolIds, modelCapability, modelConfiguration, tokenBudget,
+monetaryBudget, maxSteps, outputSchema, successCriteria,
+evidenceRequirements, status, createdAt, completedAt`.
+
+`parentAgentJobId` — добавлено после аудита (nullable, `null` для
+AgentJob, созданного напрямую оркестратором). Вместе с
+`Mission.budget.maxAgentJobDepth` это даёт проверяемую глубину рекурсии:
+глубина AgentJob = число переходов по цепочке `parentAgentJobId` до
+корня. Создание AgentJob с глубиной выше лимита отклоняется
+`TeamComposer`/`PolicyEngine` до вызова модели. Подробнее — `ADR-009`.
+
+**Бюджет AgentJob не независим от бюджета Mission** (зафиксировано после
+аудита как явный инвариант, ранее подразумевалось, но не было записано):
+`tokenBudget`/`monetaryBudget` любого AgentJob выделяются из остатка
+`Mission.budget`, и `TeamComposer` обязан проверить остаток перед
+созданием — сумма бюджетов всех AgentJob миссии никогда не может
+превысить бюджет самой Mission.
 
 Изоляция по умолчанию (раздел 10 ТЗ): AgentJob **не** получает
 автоматически полную память владельца, все секреты, полный filesystem,
 инструменты других агентов, права оркестратора или возможность порождать
 неограниченное число дочерних агентов. `contextPolicy` явно перечисляет,
 что подмешивается в контекст.
+
+**Изоляция Verifier от Executor** (перенесено из ТЗ 7.7, было потеряно
+при первом переносе в документацию — восстановлено после аудита): если
+роль AgentJob — `Verifier` для задачи T, этот AgentJob не может быть тем
+же AgentJob, что исполнял T как Builder/executor, и его `contextPolicy` не
+включает `rationaleSummary`/reasoning исполнителя T.
+
+Предварительный набросок формы `contextPolicy` (ориентир для Milestone 6,
+не финальное решение — открытый вопрос §14 остаётся открытым по существу
+решения, но не по форме): декларативный список источников с явными
+флагами, а не предвычисленный context bundle —
+`{ includeOwnerMemory: boolean, includeProjectMemory: ProjectMemoryScope
+| false, includeSecrets: false | SecretRef[], includeParentTaskArtifacts:
+boolean, includeSiblingAgentResults: boolean }`, где `includeSecrets`
+по умолчанию `false` и явное включение классифицируется PolicyEngine не
+ниже L2 (см. `SECURITY.md`).
 
 ## 6. Decision
 
@@ -169,6 +242,15 @@ Evidence всегда привязан к конкретному `criterionId` �
 `MissionContract.successCriteria` или `Task.successCriteria` — доказательство
 «вообще» без критерия не является валидным.
 
+**Ссылка вместо встраивания для чувствительного содержимого** (правило
+добавлено после аудита): если `actualResult`/`description` могли бы
+содержать чувствительное или объёмное содержимое (например, дословный
+текст memory-кандидата или файла), Evidence и порождаемое им событие
+обязаны ссылаться на `artifactId`/`sourceEventId`, а не встраивать
+содержимое целиком в `payload` события. Причина — `mission_events`
+append-only и не подчиняется `MemoryStore.forget()` (см. §9); дублирование
+содержимого в событие делает «забывание» иллюзорным.
+
 ## 8. Artifact
 
 Файл/объект, произведённый или использованный миссией.
@@ -193,6 +275,34 @@ episode, failure, lesson, procedure, relationship, temporary_context`.
 в Milestone 8): `candidate → approved → (active | superseded | expired |
 forgotten)`, либо `candidate → rejected`. `supersedesId` формирует цепочку
 ревизий факта, не перезапись.
+
+**Правило дедупликации** (добавлено после аудита — без него отсутствовал
+ответ на вопрос «что мешает накоплению мусора и противоречивых фактов в
+памяти»): прежде чем создать новую запись из `MemoryCandidate`,
+`MemoryCurator` обязан проверить существующие `active`-записи того же
+`scope` + `subject`. Если такая запись есть и новый кандидат её уточняет
+или противоречит ей — новая запись создаётся через `supersede` (старая
+переходит в `superseded`), а не как независимая запись. Две одновременно
+`active` записи одного `scope`+`subject`, утверждающие разное, — это
+состояние, которое `MemoryCurator` не должен допускать; если обнаружено
+постфактум (например, при миграции данных), это ошибка целостности,
+требующая ручного разрешения, а не штатное поведение.
+
+**Право на забвение vs неизменяемый журнал событий** (зафиксировано после
+аудита как осознанный компромисс, не как автоматически решённая
+проблема): `forget(id)` удаляет запись из активного использования
+(`retrieve`/`search` её больше не возвращают), но не переписывает
+`mission_events` задним числом. Событие, породившее память (например,
+`LessonProposed`, если из него был создан `MemoryRecord`), продолжает
+существовать в журнале аудита — поэтому правило §7 («ссылка, а не
+встраивание») обязательно для любого события, которое может нести
+содержимое, впоследствии подлежащее забвению: если содержимое хранится
+только по `sourceEventId`/`artifactId`, забвение самого `MemoryRecord`
+делает содержимое практически недостижимым через штатные интерфейсы, даже
+если формально «событие было». Это ограничение, а не полное «право на
+удаление» в юридическом смысле — должно быть явно проговорено с
+владельцем до того, как в системе появятся действительно чувствительные
+данные (не позже Milestone 8).
 
 ## 10. Skill
 
@@ -258,8 +368,37 @@ EvaluationStarted, EvaluationCompleted
 - Точная модель хранения `TaskGraph` snapshot (материализовать при
   создании плана, или всегда выводить из текущих `Task.dependencies`?) —
   решить на Milestone 4 при реализации PLAN.
-- Формат `contextPolicy` в AgentJob (декларативный список источников vs.
-  предвычисленный context bundle) — решить на Milestone 6.
+- Финальная (не предварительная) форма `contextPolicy` в AgentJob —
+  набросок дан в §5, окончательное решение на Milestone 6.
 - Партиционирование `mission_events` по времени/миссии — не требуется до
   Milestone 10, но индексы по `missionId, createdAt` закладываются в первой
   миграции.
+- Точный набор случаев, требующих ручного разрешения конфликта версий
+  (`version` на Task/Mission) — решить на Milestone 2 при реализации
+  репозиториев.
+
+## 15. Инварианты, зафиксированные после архитектурного аудита Milestone 0
+
+Ниже — сводка правил, добавленных в этот документ по итогам аудита,
+собранная в одном месте для удобства проверки на code review (детали и
+обоснование — в соответствующих параграфах выше и в `ADR-009`/`ADR-010`):
+
+1. `Mission.budget` включает `maxConcurrentAgentJobs` и `maxAgentJobDepth`
+   (§2); бюджет любого AgentJob выделяется из остатка бюджета Mission (§5).
+2. `AgentJob.parentAgentJobId` делает глубину рекурсии проверяемой (§5).
+3. Verifier для задачи — всегда отдельный AgentJob от исполнителя этой же
+   задачи; контекст Verifier не включает rationale исполнителя (§5).
+4. `Task.version` и `Mission.version` — оптимистичная блокировка;
+   конфликтующая параллельная запись — доменная ошибка, не тихая
+   перезапись (§4).
+5. Механический retry инструмента (`Tool.retryPolicy`) и семантический
+   retry задачи (`Task.attemptCount`) — разные счётчики, не смешиваются (§4).
+6. `MissionContract.contractVersion` (ревизия внутри миссии) отделён от
+   `schemaVersion` события (версия формы данных) (§3).
+7. Чувствительное/объёмное содержимое ссылается по `artifactId`/
+   `sourceEventId` в Evidence и событиях, а не встраивается целиком (§7).
+8. `MemoryCurator` проверяет дубликаты по `scope`+`subject` перед
+   созданием записи; конфликтующие `active`-записи разрешаются через
+   `supersede`, не сосуществуют (§9).
+9. `forget()` в MemoryStore не переписывает `mission_events` — это
+   осознанный, задокументированный компромисс, не полное удаление (§9).

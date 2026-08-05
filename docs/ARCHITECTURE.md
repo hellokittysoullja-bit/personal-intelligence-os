@@ -1,7 +1,7 @@
 # ARCHITECTURE — Personal Intelligence OS
 
-Статус: Milestone 0 (Discovery)
-Версия документа: 0.1.0
+Статус: Milestone 0 (Discovery) — пересмотрено после архитектурного аудита
+Версия документа: 0.2.0
 
 Этот документ описывает архитектуру фундамента PIOS: слои, границы модулей,
 основные интерфейсы, когнитивный цикл оркестратора и целевую структуру
@@ -58,15 +58,33 @@ Zod рассматривается как язык описания контра
 Domain не знает о HTTP, SQL, конкретных провайдерах моделей или браузере. Он
 знает только форму данных и правила.
 
-### 1.2 Application (`packages/application`)
+### 1.2 Application и Orchestrator Core
 
-Use cases — оркестрация доменных объектов и портов без знания конкретной
-инфраструктуры (получает реализации портов через dependency injection).
+> Уточнено после аудита: исходное дерево (раздел 18 ТЗ) явно перечисляет
+> `application/` и `orchestrator-core/` как два разных пакета. До аудита
+> `ARCHITECTURE.md` описывал только один слой «application» и при этом
+> ссылался на несуществующий `orchestrator-core` в других документах
+> (`PRODUCT_VISION.md`, ADR-005, ADR-006). Ниже — устранение этого разрыва.
 
-Ключевые use cases: `CreateMission`, `InterpretGoal`, `BuildMissionContract`,
-`SelectStrategy`, `BuildTaskGraph`, `ComposeTeam`, `StartTask`,
-`CompleteTask`, `VerifyResult`, `RequestApproval`, `ResumeMission`,
-`CancelMission`, `ExtractLesson`, `ProposeSkill`, `RunEvaluation`.
+**`packages/application`** — обычные use cases уровня CRUD/операций над
+сущностями, не требующие знания текущей фазы когнитивного цикла:
+`CreateMission`, `RequestApproval`, `ResumeMission`, `CancelMission`,
+`ProposeSkill`, `RunEvaluation`. Получают реализации портов через
+dependency injection, не знают об инфраструктуре.
+
+**`packages/orchestrator-core`** — координация когнитивного цикла
+(раздел 4 ниже): `InterpretGoal`, `BuildMissionContract`, `SelectStrategy`,
+`BuildTaskGraph`, `ComposeTeam`, `StartTask`, `CompleteTask`,
+`VerifyResult`, `ExtractLesson` — вся логика, управляющая переходами
+`MissionStatus`/`TaskStatus` по фазам INTAKE→...→FINISH. Зависит только от
+`packages/domain` и портов; использует `WorkflowEngine` как порт, но сам
+не содержит LangGraph-специфики (см. §7). Это единственное место, где
+живёт «мозг» оркестратора — то, что раньше в документах называлось
+`orchestrator-core` без явного определения, теперь имеет конкретный дом.
+
+Оба пакета — часть application-слоя на диаграмме §1: `interfaces →
+application/orchestrator-core → domain`. Разделение внутри слоя не меняет
+направление зависимостей.
 
 Каждый use case — небольшой класс/функция с явным входом и выходом,
 покрываемая unit-тестами через fake-реализации портов.
@@ -80,16 +98,48 @@ Use cases — оркестрация доменных объектов и пор
 - `packages/model-gateway` — адаптеры провайдеров моделей;
 - `packages/workflow-engine` — `LangGraphWorkflowEngine` и в будущем другие;
 - `packages/browser-runtime` — Playwright adapter;
-- `packages/tool-runtime` — filesystem/terminal/git tools;
+- `packages/tool-runtime` — filesystem/terminal/git tools, реализация
+  `ToolExecutor`/`ToolRegistry` (единственная точка выполнения инструментов
+  — см. §8);
+- `packages/agent-runtime` — реализация порта `AgentRuntime`: получает
+  `AgentJob`, строит его контекст (`contextPolicy`), вызывает
+  `ModelRouter`/`ModelProvider`, предлагает вызовы инструментов через
+  `packages/tool-runtime`, возвращает `AgentJobResult`. До Milestone 0
+  этот пакет отсутствовал в документе, хотя порт `AgentRuntime` уже был
+  описан в §5 — исправлено;
+- `packages/policy` — реализация порта `PolicyEngine` (классификация
+  L0–L4, решения auto/require_approval/deny — см. `SECURITY.md`). До
+  аудита `PolicyEngine` существовал только как порт без указанного дома —
+  исправлено;
 - `packages/artifacts` — локальное хранилище артефактов (в будущем S3);
-- `packages/observability` — логирование, трассировка.
+- `packages/observability` — логирование, трассировка;
+- `packages/testkit` — общие fake-реализации портов для тестов
+  (`FakeModelProvider`, in-memory `MissionRepository`/`TaskRepository`,
+  фикстуры) — переиспользуются unit- и integration-тестами всех пакетов,
+  не дублируются в каждом пакете отдельно.
+
+`packages/contracts` — не infrastructure и не domain: это wire-формат
+внешнего API (то, что видит `apps/web` и любой внешний клиент через REST/
+realtime). Схемы в `packages/contracts` обычно производны от схем
+`packages/domain` (сериализуемое подмножество, без внутренних деталей),
+а не дублируются вручную — правило, которого не было в документе до
+аудита и которое было источником риска рассинхронизации двух наборов
+Zod-схем.
 
 ### 1.4 Interfaces
 
 - `apps/api` — HTTP + realtime (SSE/WebSocket) API на Fastify;
 - `apps/web` — Next.js web-интерфейс (операторская консоль);
 - `apps/worker` — процесс, исполняющий миссии (workflow engine +
-  agent runtime + tool runtime), потребляет очередь задач;
+  agent runtime + tool runtime). До Milestone 10 диспетчеризация не
+  использует внешнюю очередь (Redis/BullMQ и подобные технологии — прямо
+  запланированы только на Milestone 10, см. `ROADMAP.md`): worker узнаёт о
+  готовых к исполнению миссиях через тот же механизм, что и `EventBus`
+  (Postgres `LISTEN/NOTIFY` на смену `Mission.status` в `ready`-подобное
+  состояние, либо polling как fallback) — без новой инфраструктуры. Это
+  уточнение внесено после аудита: более ранняя версия документа говорила
+  о «потреблении очереди задач», что прямо противоречило решению не
+  вводить очередь до Milestone 10;
 - CLI — тонкая обвязка над application use cases для локальной отладки
   (появляется по мере необходимости, не отдельный пакет с первого дня).
 
@@ -120,10 +170,20 @@ Milestone 0–9, но последовательная и централизов
 обязательна с первого дня, потому что она — основа аудита, отладки и
 Debug Timeline.
 
-Realtime-доставка событий в UI идёт через `EventBus` (порт домена),
-реализованный поверх Postgres LISTEN/NOTIFY или простого in-process
-EventEmitter в Milestone 1–2, с возможностью позже заменить на Redis pub/sub
-— без изменения потребителей.
+Realtime-доставка событий в UI идёт через `EventBus` (порт домена).
+
+> Исправлено после аудита: более ранняя версия документа допускала
+> реализацию через «простой in-process EventEmitter» в Milestone 1–2. Это
+> физически не работает при уже принятом разделении `apps/api` и
+> `apps/worker` на два процесса (§1.4) — события, порождённые в worker,
+> не долетят до in-process подписчиков в api. Единственная реализация
+> `EventBus`, работающая между процессами без новой инфраструктуры,
+> реализуется поверх Postgres `LISTEN/NOTIFY` (та же база, что и источник
+> истины) с Milestone 2 — с возможностью позже заменить на Redis pub/sub
+> без изменения потребителей порта. In-process fan-out допустим только как
+> деталь реализации *внутри* одного процесса (например, чтобы не делать
+> лишний `LISTEN` на каждого локального подписчика api), но не как
+> единственный транспорт.
 
 ## 4. Когнитивный цикл оркестратора
 
@@ -174,11 +234,32 @@ interface ModelRouter {
 
 interface Tool<Input, Output> {
   id: string;
+  name: string;
+  description: string;
   inputSchema: ZodSchema<Input>;
   outputSchema: ZodSchema<Output>;
   riskLevel: RiskLevel;
+  requiredPermissions: Permission[];
+  sideEffects: SideEffectDescription[];
+  idempotency: 'idempotent' | 'not_idempotent' | 'unknown';
+  timeout: DurationMs;
+  retryPolicy: RetryPolicy;       // для транзиентных сбоёв самого вызова
+  rollbackStrategy: RollbackStrategy | 'none';
+  verificationStrategy: VerificationStrategy;
   execute(input: Input, ctx: ToolExecutionContext): Promise<Output>;
 }
+```
+
+> Исправлено после аудита: более ранняя версия документа приводила
+> сокращённый sketch (`id, inputSchema, outputSchema, riskLevel, execute`),
+> потерявший поля, явно требуемые ТЗ (раздел 11): `requiredPermissions,
+> sideEffects, idempotency, timeout, retryPolicy, rollbackStrategy,
+> verificationStrategy`. Без `idempotency`/`retryPolicy` `ToolExecutor` не
+> может безопасно решить, можно ли повторить вызов после восстановления
+> процесса (см. §17 «Известные ограничения» и `ADR-010`) — это не
+> опциональные поля, а необходимое условие безопасного retry/recovery.
+
+```ts
 
 interface EventBus {
   publish(event: DomainEvent): Promise<void>;
@@ -236,11 +317,24 @@ capability в конкретного провайдера + модель чер�
 пересекают границу пакета: наружу торчит только доменный интерфейс.
 Будущие адаптеры (`LocalWorkflowEngine` для тестов без LangGraph,
 `TemporalWorkflowEngine` для долгоживущих процессов) подключаются без
-изменений в `orchestrator-core`.
+изменений в `packages/orchestrator-core`/`packages/domain`.
+
+> Уточнено после аудита: эта гарантия относится к control-plane
+> интерфейсу (`start/pause/resume/cancel/signal/getState/checkpoint`) и к
+> доменным сущностям Mission/Task/AgentJob — она не означает, что логика,
+> *авторизующая* фазу EXECUTE (как строится граф выполнения шагов внутри
+> одного рана), переносится между движками бесплатно. LangGraph позволяет
+> узлам вызывать инструменты напрямую внутри шага; Temporal требует
+> детерминированных workflow-функций с побочными эффектами только через
+> Activities — принципиально другая модель авторства. Переход на Temporal
+> в Milestone 10 потребует переписать код, реализующий узлы/шаги EXECUTE,
+> даже если Mission/Task не изменятся. См. `ADR-006`, раздел «Уточнение
+> после аудита».
 
 ## 8. Tool Runtime и Policy
 
-`packages/tool-runtime` — единая точка выполнения инструментов:
+`packages/tool-runtime` (реализация в связке с `packages/policy`) — единая
+точка выполнения инструментов:
 валидация входа по Zod → проверка разрешений через `PolicyEngine` →
 (при необходимости) `ApprovalRequest` → событие `ToolCallRequested` →
 выполнение → сохранение результата/артефакта → `Evidence` (если применимо)
@@ -249,6 +343,23 @@ capability в конкретного провайдера + модель чер�
 
 Уровни риска действий (L0–L4) и правило автоматического/ручного
 подтверждения — детально в `SECURITY.md`.
+
+`ToolExecutor` — единственная точка выполнения для *всех* инструментов,
+включая браузерные: `packages/browser-runtime` (§9) поставляет реализации
+`Tool` (например, `browser_click`, `browser_type`), которые регистрируются
+в том же `ToolRegistry` и проходят тот же пайплайн `ToolExecutor`, а не
+параллельный путь выполнения. Это уточнение внесено после аудита — без
+него `browser-runtime` как отдельный пакет мог быть прочитан как
+альтернативный, а не дополняющий исполнительный путь, что подрывало бы
+инвариант «ни один Tool не выполняется в обход PolicyEngine».
+
+Интероперабельность с внешними/будущими инструментами и языками (включая
+Python-инструменты) обеспечивается через `MCPToolAdapter` — отдельный
+адаптер поверх интерфейса `Tool`, реализующий вызовы инструментов через
+Model Context Protocol. MCP не становится доменной моделью проекта
+(принцип 1.2 `PRODUCT_VISION.md`): `MCPToolAdapter` — это ещё одна
+реализация `Tool`, ничем не отличающаяся с точки зрения `ToolExecutor` от
+`read_file` или `browser_click`.
 
 ## 9. Browser Runtime
 
@@ -283,9 +394,25 @@ MissionContract + Task + Result + Artifacts + Evidence + Policy и
 human_review_required`, с постатейным разбором критериев. LLM-ревьюер —
 один из источников доказательства, не единственный.
 
+**Инвариант независимости верификации** (добавлено после аудита, ранее
+присутствовало только в исходном ТЗ раздел 7.7 и было потеряно при
+переносе в этот документ): для задач, верифицируемых через `AgentJob`,
+Verifier обязан выполняться как отдельный `AgentJob` от исполнителя этой
+же задачи — переиспользование одного и того же `AgentJob` для роли
+Builder и роли Verifier одной задачи запрещено. Контекст, передаваемый
+Verifier, не включает `Decision.rationaleSummary` или любое иное
+самоотчётное объяснение исполнителя о том, почему задача выполнена
+успешно — Verifier видит только MissionContract, критерии, артефакты и
+Evidence, и формирует независимое суждение по ним.
+
 `packages/team-composer` — решает, нужен ли субагент, сколько, какие роли,
 какой уровень модели, бюджет, кто проверяет. Не создаёт команду, если один
-исполнитель справится лучше и дешевле.
+исполнитель справится лучше и дешевле. Любое создание `AgentJob` —
+включая вложенные, порождаемые другим `AgentJob` — проходит через
+`TeamComposer` и обязано пройти проверку глобальных пределов миссии
+(глубина рекурсии, суммарный и остаточный бюджет — см. `DOMAIN_MODEL.md`
+§5, §15 и `ADR-009`). Это ограничение добавлено после аудита: до него
+ничто в документе не мешало неограниченному порождению вложенных агентов.
 
 `packages/learning` — `Learning Engine`: сравнение ожидания и результата,
 классификация ошибок, `Lesson Candidate`, `Skill Candidate`, запуск evals в
@@ -342,6 +469,8 @@ headers никогда не логируются. `Debug Timeline` миссии 
 | WorkflowEngine как адаптер (LangGraph.js первым) | ADR-006 |
 | PostgreSQL как единственный источник истины | ADR-007 |
 | Обязательное подтверждение владельца для необратимых действий | ADR-008 |
+| Пределы рекурсии и бюджета субагентов | ADR-009 |
+| Модель согласованности состояния/событий и восстановление после сбоя | ADR-010 |
 
 ## 17. Основные технические риски
 
@@ -358,8 +487,61 @@ headers никогда не логируются. `Debug Timeline` миссии 
    напрямую в domain/application.
 4. **Ложное чувство безопасности от PolicyEngine, если инструменты не все
    проходят через ToolRuntime.** Митигируется architectural test'ом:
-   единственная точка вызова инструмента — `ToolExecutor`.
+   единственная точка вызова инструмента — `ToolExecutor`. Уточнено после
+   аудита: этот architectural test **обязателен, начиная с Milestone 5**
+   (не «желательно, если удобно») — до его появления PolicyEngine является
+   программным соглашением, а не проверяемой границей (см. §18 ниже и
+   `SECURITY.md`).
 5. **Неограниченный рост стоимости/времени миссии.** Митигируется
    обязательными лимитами на Mission/Task/AgentJob (max model calls, max
    tool calls, max duration, max cost, max correction loops) с первого дня
-   доменной модели, даже если Milestone 1–3 их не проверяет в реальном времени.
+   доменной модели, даже если Milestone 1–3 их не проверяет в реальном
+   времени. Дополнено после аудита: сюда же относится неограниченное
+   порождение вложенных субагентов — см. §11 и `ADR-009`.
+
+## 18. Известные архитектурные ограничения (зафиксировано после аудита Milestone 0)
+
+Честная фиксация того, что фундамент **не** гарантирует сегодня, чтобы
+эти пробелы не были приняты по умолчанию за решённые:
+
+1. **PolicyEngine — программная, а не ОС-уровневая граница до Docker
+   sandbox (Milestone 10).** `run_command` и файловые инструменты
+   исполняются в том же Node.js-процессе, что и остальное приложение; их
+   изоляция сегодня — дисциплина прохождения через `ToolExecutor`,
+   проверяемая review и (с Milestone 5, обязательно) architectural
+   тестом, запрещающим прямой импорт `child_process`/`fs`/сетевых модулей
+   вне `packages/tool-runtime` и `packages/browser-runtime`. Это не
+   заменяет OS-уровневую изоляцию — она приходит только с Docker sandbox.
+2. **Нет аутентификации API.** `apps/api` до появления явного требования
+   на сетевое раскрытие предполагает доступ только с localhost/доверенной
+   сети одного владельца. Добавление аутентификации — обязательное
+   предусловие для любого сетевого доступа за пределы localhost, а не
+   последующая доработка (см. `SECURITY.md`).
+3. **Recovery после падения процесса не спроектирован до Milestone 4.**
+   `WorkflowEngine.checkpoint/getState` даёт технические примитивы, но
+   reconciliation-логика при рестарте `apps/worker` (что делать с
+   миссией/tool call, зависшими в незавершённом статусе) — открытая
+   задача Milestone 4, обязательная к решению до первого реального
+   исполнения инструментов с побочными эффектами. См. `ADR-010`.
+4. **Конфликт между `MemoryStore.forget()` и неизменяемостью
+   `mission_events`.** `forget()` убирает запись из активного
+   использования, но не переписывает историю аудита задним числом —
+   события, которые могут нести чувствительное содержимое, обязаны
+   ссылаться на артефакт/память по `id`, а не встраивать содержимое
+   целиком (см. `DOMAIN_MODEL.md` §9, §12).
+
+## 19. Пределы автономного создания субагентов
+
+Формализовано после аудита (ранее — только словесный принцип «не
+имитировать интеллект количеством субагентов», без architectural
+инварианта):
+
+- `Mission.budget` включает `maxConcurrentAgentJobs` и
+  `maxAgentJobDepth` (см. `DOMAIN_MODEL.md` §2, §5, §15);
+- бюджет (`tokenBudget`/`monetaryBudget`) любого `AgentJob` выделяется
+  из остатка бюджета `Mission`, никогда не независим от него;
+- `AgentJob` хранит `parentAgentJobId`; создание AgentJob с глубиной,
+  превышающей `maxAgentJobDepth`, или создание, превышающее
+  `maxConcurrentAgentJobs`, отклоняется `PolicyEngine`/`TeamComposer` до
+  вызова модели — не после;
+- полное обоснование — `ADR-009`.

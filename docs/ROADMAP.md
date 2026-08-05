@@ -1,7 +1,7 @@
 # ROADMAP — Personal Intelligence OS
 
-Статус: Milestone 0 (Discovery) — в процессе
-Версия документа: 0.1.0
+Статус: Milestone 0 (Discovery) — пересмотрено после архитектурного аудита
+Версия документа: 0.2.0
 
 Работа ведётся строго по milestone. Каждый milestone заканчивается
 работающим, протестированным состоянием проекта, кратким отчётом и
@@ -53,6 +53,33 @@ milestone не начинается до подтверждения предыд
 
 Это осознанное следование инструкции: документы — до реализации.
 
+### Архитектурный аудит Milestone 0
+
+После первого прохода документов проведён строгий архитектурный аудит
+(роли: Principal Software Architect, Distributed Systems Engineer, AI
+Agent Systems Architect, Security Architect, skeptical reviewer). Аудит
+нашёл и устранил документально: физически нерабочий план `EventBus`
+(in-process EventEmitter при уже разделённых процессах api/worker),
+отсутствие architectural-предела на рекурсию/бюджет субагентов,
+отсутствие истории восстановления миссии после сбоя, нечестную
+формулировку о строгости границы `PolicyEngine`, потерянные при переносе
+из ТЗ поля контракта `Tool` и инвариант изоляции Verifier/Executor,
+неопределённый термин «orchestrator-core» и несколько пропущенных
+пакетов (`policy`, `agent-runtime`, `testkit`). Все исправления внесены
+в этот же проход — см. изменённые версии документов и новые
+`ADR-009`/`ADR-010`. Ни одна находка не потребовала отката к
+предыдущему milestone или изменения принятых в M0 базовых решений
+(ADR-001…008) — только их уточнения и дополнения.
+
+> **Важная оговорка**: успешное прохождение критериев готовности
+> Milestone 1 (ниже) подтверждает механическую работоспособность
+> репозитория — install/typecheck/lint/test, здоровье процессов,
+> подключение к Postgres. Оно **не** подтверждает архитектурные критерии
+> из `PRODUCT_VISION.md` §5 (заменяемость LangGraph/провайдера, recovery,
+> независимая верификация и т.д.) — они становятся проверяемыми
+> постепенно, начиная с Milestone 2 и далее по мере появления второго
+> реального адаптера каждого порта.
+
 ---
 
 ## Milestone 1 — Foundation (предложение, не реализовано)
@@ -81,9 +108,9 @@ personal-intelligence-os/
       src/main.ts
       src/env.ts                  # Zod env validation
     worker/                       # процесс-заглушка, GET /health на отдельном порту
-      package.json
-      src/main.ts
-      src/env.ts
+      package.json                # диспетчеризация миссий (M2+) — через Postgres
+      src/main.ts                 # LISTEN/NOTIFY или polling, без внешней очереди
+      src/env.ts                  # до Milestone 10 (см. ARCHITECTURE.md §1.4)
   packages/
     domain/                       # пустой каркас: errors.ts, branding utils
       package.json
