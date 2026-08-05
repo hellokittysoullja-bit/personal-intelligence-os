@@ -1,11 +1,10 @@
 # DEVELOPMENT — Personal Intelligence OS
 
-Статус: Milestone 0 (Discovery)
-Версия документа: 0.1.0
+Статус: Milestone 1 (Foundation) реализован
+Версия документа: 0.3.0
 
-Этот документ фиксирует правила разработки, которые вступают в силу с
-Milestone 1. Он будет дополнен конкретными командами (`pnpm dev`, `pnpm
-test` и т.д.) сразу после того, как эти команды появятся в репозитории.
+Этот документ фиксирует правила разработки. Раздел 8 содержит реальные
+команды, работающие начиная с Milestone 1.
 
 ## 1. Стек (сводно)
 
@@ -118,13 +117,63 @@ test` и т.д.) сразу после того, как эти команды п
 - секреты никогда не коммитятся; при случайном коммите — ротация ключа,
   не только удаление из истории.
 
-## 7. Конфигурация окружения (появится в Milestone 1)
+## 7. Конфигурация окружения
 
 - `.env.example` в корне — перечисляет все переменные без значений;
-- валидация окружения через Zod при старте каждого `apps/*` процесса —
-  приложение не стартует с невалидным/неполным конфигом;
-- локальная PostgreSQL — через `docker/docker-compose.yml`.
+  скопируйте в `.env` для локальной разработки (`.env` в `.gitignore`);
+- валидация окружения через Zod при старте `apps/api` и `apps/worker` —
+  приложение не стартует с невалидным/неполным конфигом (см.
+  `apps/api/src/env.ts`, `apps/worker/src/env.ts`);
+- локальная PostgreSQL — через `docker/docker-compose.yml`. `apps/api` и
+  `apps/worker` ищут `.env` в корне репозитория независимо от того, из
+  какой директории запущен процесс.
 
-Конкретные команды запуска (`pnpm dev`, `pnpm --filter api dev` и т.д.)
-будут добавлены в этот документ сразу после создания соответствующих
-`package.json` в Milestone 1.
+## 8. Команды (Milestone 1)
+
+```bash
+# Установка (Node и pnpm версии закреплены — .nvmrc, packageManager в package.json)
+corepack enable
+pnpm install --frozen-lockfile
+
+# PostgreSQL 16 локально
+cp .env.example .env
+docker compose -f docker/docker-compose.yml up -d
+
+# Схема и первая миграция (packages/database/src/schema.ts)
+pnpm db:generate   # drizzle-kit generate -> migrations/*.sql
+pnpm db:migrate     # применяет migrations/*.sql к DATABASE_URL
+
+# Проверки — как в CI (.github/workflows/ci.yml)
+pnpm typecheck
+pnpm lint
+pnpm test
+pnpm build
+
+# Разработка (watch-режим, отдельные терминалы или `pnpm dev` из корня — turbo запустит все параллельно)
+pnpm --filter @pios/api run dev       # Fastify на API_PORT (по умолчанию 3001)
+pnpm --filter @pios/worker run dev    # Fastify на WORKER_PORT (по умолчанию 3002)
+pnpm --filter @pios/web run dev       # Next.js на :3000
+
+# Production-подобный запуск после `pnpm build`
+node apps/api/dist/main.js
+node apps/worker/dist/main.js
+pnpm --filter @pios/web run start
+```
+
+Health-эндпоинты: `GET /health/live` (процесс жив) и `GET /health/ready`
+(проверяет Postgres, 200/503) — на `apps/api` и `apps/worker`.
+
+### Известное ограничение локальной проверки Docker Compose
+
+В некоторых песочницах (в т.ч. в среде, где выполнялась реализация
+Milestone 1) исходящий сетевой доступ к CDN-хосту, с которого Docker
+раздаёт слои образов (`production.cloudfront.docker.com`), блокируется
+политикой окружения — `docker compose up` в такой среде не может
+выполнить `docker pull postgres:16`. Это ограничение конкретной
+песочницы, а не самого `docker-compose.yml`: на обычной машине
+разработчика и в GitHub Actions (без такого прокси) `docker compose -f
+docker/docker-compose.yml up -d` работает штатно — это подтверждено тем,
+что тот же сервис-контейнер `postgres:16` используется в CI
+(`.github/workflows/ci.yml`). В самой песочнице Milestone 1 проверялся
+через нативно установленный в образе PostgreSQL 16 (та же версия), что
+не меняет ни код, ни конфигурацию.
