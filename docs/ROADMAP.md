@@ -1,7 +1,7 @@
 # ROADMAP — Personal Intelligence OS
 
-Статус: Milestone 1 (Foundation) реализован
-Версия документа: 0.3.0
+Статус: Milestone 2 (Mission и Events) реализован
+Версия документа: 0.4.0
 
 Работа ведётся строго по milestone. Каждый milestone заканчивается
 работающим, протестированным состоянием проекта, кратким отчётом и
@@ -24,9 +24,10 @@ milestone не начинается до подтверждения предыд
 | 9 | Learning и Skills | Lesson/Skill candidates, eval runner, controlled adoption |
 | 10 | Long-running и масштабирование | Только после стабильности 1–9: очереди, Temporal, S3, sandbox и т.д. |
 
-Ниже — только Milestone 0 (текущий) и предложение по Milestone 1. Milestone
-2–10 детализируются непосредственно перед своим запуском, чтобы план не
-расходился с фактическим состоянием кода.
+Ниже — Milestone 0 и 1 (архитектура и фундамент), детальный отчёт по
+Milestone 2 (реализован) и сводка по Milestone 3–10 (детализируются
+непосредственно перед своим запуском, чтобы план не расходился с
+фактическим состоянием кода).
 
 ---
 
@@ -232,13 +233,64 @@ Temporal, CrewAI. Все они появляются вместе с перво�
 
 ---
 
-## Milestone 2–10 (сводно, без детализации)
+## Milestone 2 — Mission и Events (реализовано)
+
+### Фактический результат
+
+Goal/Mission/Task/Event — доменные типы и конечные автоматы статусов в
+`packages/domain`; wire-контракты в `packages/contracts` (переиспользуют
+domain-схемы, не дублируют); Drizzle-таблицы `goals/missions/tasks/
+mission_events` (заменили placeholder `bootstrap_check` из Milestone 1) с
+репозиториями и `UnitOfWork` (атомарная запись Goal+Mission+Event в одной
+транзакции, ADR-004) в `packages/database`; `CreateMission` use case в
+новом пакете `packages/application`; REST API (`POST /missions`,
+`GET /missions`, `GET /missions/:id`, `GET /missions/:id/events`,
+`GET /missions/:id/tasks`) и realtime-таймлайн через SSE
+(`GET /missions/:id/events/stream`) в `apps/api`; список миссий, форма
+создания и страница миссии с live-таймлайном в `apps/web`. Без реального
+LLM — миссия создаётся напрямую из буквального текста запроса,
+`currentPhase` остаётся `"intake"`.
+
+**Отличия от первоначального плана Milestone 1** (пакет `packages/
+application` не был в дереве M1 — обоснованно появился только сейчас,
+когда возник первый реальный use case; ранее создавать его заранее было
+бы преждевременной абстракцией):
+
+- добавлен `packages/application` — обычные (не orchestrator-core) use
+  cases, как и описано в `ARCHITECTURE.md` §1.2;
+- `EventBus` реализован через Postgres LISTEN/NOTIFY
+  (`packages/database/src/event-bus.ts`) — ровно так, как зафиксировано
+  после аудита Milestone 0 (`ARCHITECTURE.md` §3), включая проверку
+  межпроцессной доставки события, вставленного отдельным подключением;
+- realtime-канал — SSE, не WebSocket (обоснование — `ARCHITECTURE.md`
+  §12);
+- добавлен `@fastify/cors` — `apps/web` (порт 3000) и `apps/api` (порт
+  3001) разные origin, без CORS браузер не смог бы читать ни REST-ответы,
+  ни SSE-поток;
+- найден и исправлен реальный баг при браузерной проверке: `reply.hijack()`
+  для SSE обходит `onSend`-хук `@fastify/cors`, поэтому
+  `Access-Control-Allow-Origin` для потока событий выставляется вручную
+  (`apps/api/src/server.ts`).
+
+### Проверено вручную (помимо typecheck/lint/test/build)
+
+- создание миссии через API и через форму в браузере (Playwright,
+  headless Chromium);
+- realtime-доставка: событие, вставленное напрямую через отдельное
+  psql-подключение (имитация другого процесса), реально дошло до
+  открытого SSE-потока браузера — подтверждает, что `EventBus` не
+  привязан к тому, что писатель и читатель — один и тот же процесс;
+  прямое следствие фикса, внесённого аудитом Milestone 0 (было бы
+  физически невозможно на in-process `EventEmitter`);
+- persistence после рестарта: миссия, созданная до `kill -TERM`
+  `apps/api`, видна в `GET /missions` после перезапуска процесса.
+
+---
+
+## Milestone 3–10 (сводно, без детализации)
 
 Детальные результаты каждого milestone — как в разделе 22 исходного ТЗ:
 
-- **M2 Mission и Events**: Goal/Mission/Task/Event сущности и репозитории,
-  `mission_events`, API создания миссии, UI списка/карточки, realtime
-  timeline. Без реального LLM.
 - **M3 Model Gateway**: provider interface, fake provider, один реальный
   adapter, capability routing, structured output, usage/cost logging,
   retries, timeout, schema repair.

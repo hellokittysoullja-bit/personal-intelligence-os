@@ -12,6 +12,8 @@
     "start": "node dist/main.js"
   },
   "dependencies": {
+    "@fastify/cors": "^10.0.2",
+    "@pios/application": "workspace:*",
     "@pios/contracts": "workspace:*",
     "@pios/database": "workspace:*",
     "@pios/domain": "workspace:*",

@@ -1,14 +1,98 @@
-import { pgTable, serial, text, timestamp } from "drizzle-orm/pg-core";
+import type { MissionBudget } from "@pios/domain";
+import { index, integer, jsonb, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
+
+/** docs/DOMAIN_MODEL.md §1 */
+export const goals = pgTable("goals", {
+  id: uuid("id").primaryKey(),
+  ownerId: text("owner_id").notNull(),
+  rawRequest: text("raw_request").notNull(),
+  inferredIntent: text("inferred_intent"),
+  desiredOutcome: text("desired_outcome"),
+  parentGoalId: uuid("parent_goal_id"),
+  priority: text("priority").notNull(),
+  status: text("status").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+/** docs/DOMAIN_MODEL.md §2 */
+export const missions = pgTable("missions", {
+  id: uuid("id").primaryKey(),
+  ownerId: text("owner_id").notNull(),
+  goalId: uuid("goal_id")
+    .notNull()
+    .references(() => goals.id),
+  title: text("title").notNull(),
+  objective: text("objective").notNull(),
+  status: text("status").notNull(),
+  currentPhase: text("current_phase").notNull(),
+  autonomyLevel: text("autonomy_level").notNull(),
+  riskLevel: text("risk_level").notNull(),
+  budget: jsonb("budget").notNull().$type<MissionBudget>(),
+  successCriteria: jsonb("success_criteria").notNull().$type<string[]>(),
+  constraints: jsonb("constraints").notNull().$type<string[]>(),
+  unknowns: jsonb("unknowns").notNull().$type<string[]>(),
+  assumptions: jsonb("assumptions").notNull().$type<string[]>(),
+  stopConditions: jsonb("stop_conditions").notNull().$type<string[]>(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  startedAt: timestamp("started_at", { withTimezone: true }),
+  completedAt: timestamp("completed_at", { withTimezone: true }),
+  version: integer("version").notNull().default(1),
+});
 
 /**
- * Milestone 1 placeholder-таблица. Единственная цель — доказать, что
- * пайплайн Drizzle (generate → migrate → readiness check) работает целиком
- * end-to-end. Не несёт доменного смысла и не является частью доменной
- * модели (docs/DOMAIN_MODEL.md) — будет удалена, когда в Milestone 2
- * появятся реальные таблицы (goals, missions, tasks, mission_events).
+ * docs/DOMAIN_MODEL.md §4. В Milestone 2 задачи не создаются (нет
+ * планировщика — появляется в Milestone 4), но таблица нужна уже сейчас:
+ * GET /missions/:id/tasks должен отвечать реальным (пустым) списком, а не
+ * заглушкой, и схема не должна требовать ломающей миграции в M4.
  */
-export const bootstrapCheck = pgTable("bootstrap_check", {
-  id: serial("id").primaryKey(),
-  note: text("note").notNull().default("personal-intelligence-os bootstrap"),
+export const tasks = pgTable("tasks", {
+  id: uuid("id").primaryKey(),
+  missionId: uuid("mission_id")
+    .notNull()
+    .references(() => missions.id),
+  parentTaskId: uuid("parent_task_id"),
+  title: text("title").notNull(),
+  description: text("description").notNull().default(""),
+  taskType: text("task_type").notNull(),
+  status: text("status").notNull(),
+  dependencies: jsonb("dependencies").notNull().$type<string[]>(),
+  // Ссылается на будущую таблицу agent_jobs (Milestone 6) — пока без FK,
+  // т.к. таблицы ещё не существует.
+  assignedAgentJobId: uuid("assigned_agent_job_id"),
+  inputArtifactIds: jsonb("input_artifact_ids").notNull().$type<string[]>(),
+  outputArtifactIds: jsonb("output_artifact_ids").notNull().$type<string[]>(),
+  successCriteria: jsonb("success_criteria").notNull().$type<string[]>(),
+  evidenceRequirements: jsonb("evidence_requirements").notNull().$type<string[]>(),
+  maxAttempts: integer("max_attempts").notNull().default(3),
+  attemptCount: integer("attempt_count").notNull().default(0),
+  timeoutMs: integer("timeout_ms").notNull(),
+  budget: jsonb("budget").notNull().$type<MissionBudget>(),
+  version: integer("version").notNull().default(1),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+/**
+ * docs/DOMAIN_MODEL.md §12, ADR-004 — append-only журнал аудита, основной
+ * источник объяснимости. Композитный индекс (mission_id, timestamp)
+ * заложен сразу — см. риск партиционирования в docs/ARCHITECTURE.md §17.
+ */
+export const missionEvents = pgTable(
+  "mission_events",
+  {
+    eventId: uuid("event_id").primaryKey(),
+    eventType: text("event_type").notNull(),
+    timestamp: timestamp("timestamp", { withTimezone: true }).notNull(),
+    ownerId: text("owner_id").notNull(),
+    missionId: uuid("mission_id"),
+    taskId: uuid("task_id"),
+    agentJobId: uuid("agent_job_id"),
+    traceId: text("trace_id").notNull(),
+    causationId: uuid("causation_id"),
+    correlationId: text("correlation_id").notNull(),
+    payload: jsonb("payload").notNull().$type<Record<string, unknown>>(),
+    schemaVersion: integer("schema_version").notNull(),
+  },
+  (table) => [index("mission_events_mission_id_timestamp_idx").on(table.missionId, table.timestamp)],
+);

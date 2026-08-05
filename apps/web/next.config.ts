@@ -1,4 +1,11 @@
+import path from "node:path";
+import dotenv from "dotenv";
 import type { NextConfig } from "next";
+
+// .env лежит в корне монорепозитория, не в apps/web — Next.js по умолчанию
+// ищет .env только в своей собственной директории, поэтому грузим явно
+// (тот же приём, что и в apps/api/apps/worker, см. docs/DEVELOPMENT.md §7).
+dotenv.config({ path: path.resolve(__dirname, "../../.env") });
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,

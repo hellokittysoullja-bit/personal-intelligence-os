@@ -1,7 +1,7 @@
 # ARCHITECTURE — Personal Intelligence OS
 
-Статус: Milestone 0 (Discovery) — пересмотрено после архитектурного аудита
-Версия документа: 0.2.0
+Статус: Milestone 2 (Mission и Events) реализован
+Версия документа: 0.3.0
 
 Этот документ описывает архитектуру фундамента PIOS: слои, границы модулей,
 основные интерфейсы, когнитивный цикл оркестратора и целевую структуру
@@ -423,11 +423,18 @@ Proposal (отдельная ветка, тесты, независимый revi
 
 ## 12. API и realtime
 
-Минимальный REST + realtime API описан в исходном ТЗ (раздел 17) и будет
-детализирован как OpenAPI/Zod-контракты в `packages/contracts` при
-реализации Milestone 2+. Realtime-канал (SSE или WebSocket — выбор
-фиксируется ADR в момент Milestone 2) передаёт события об изменении
-статуса/фазы/задачи/agent job/tool call/approval/artifact.
+Минимальный REST + realtime API описан в исходном ТЗ (раздел 17) и
+детализирован как Zod-контракты в `packages/contracts`. Realtime-канал
+реализован в Milestone 2 через **Server-Sent Events** (`GET
+/missions/:id/events/stream`) — выбран вместо WebSocket как более простой
+вариант для однонаправленного потока (сервер → браузер): в Milestone 2 нет
+клиент→сервер realtime-взаимодействия, которое оправдывало бы сложность
+WebSocket. Решение не оформлено отдельным ADR — это выбор конкретной
+транспортной технологии внутри уже принятого архитектурного решения
+(EventBus поверх Postgres LISTEN/NOTIFY, см. §3), а не новый архитектурный
+принцип. Пересмотр к WebSocket возможен позже (например, для Human
+Takeover в Browser Runtime, Milestone 7, где нужна обратная связь
+браузер→сервер) без изменения `EventBus`/`EventStore` портов.
 
 ## 13. Prompt Management
 

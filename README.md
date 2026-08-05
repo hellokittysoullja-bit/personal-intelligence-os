@@ -6,10 +6,12 @@
 проверяет и учится — с полным аудитом, возможностью остановки и отката, и
 без критической зависимости от одной модели, провайдера или фреймворка.
 
-Проект прошёл **Milestone 0 — Discovery** (архитектура и ADR) и
-**Milestone 1 — Foundation**: монорепозиторий устанавливается и
-запускается, API и worker поднимаются, PostgreSQL подключается через
-Drizzle. Доменная модель миссий и оркестрация — в следующих milestone.
+Проект прошёл **Milestone 0 — Discovery**, **Milestone 1 — Foundation** и
+**Milestone 2 — Mission и Events**: можно создать миссию (пока без
+реального LLM — буквально из текста запроса), увидеть её в списке и на
+отдельной странице с live-таймлайном событий, состояние переживает
+перезапуск процессов. Оркестрация, модели и агенты — в следующих
+milestone.
 
 ## Документация
 
@@ -45,5 +47,5 @@ pnpm --filter @pios/web run dev      # apps/web    — http://localhost:3000
 
 ## Статус
 
-Milestone 0 (документы и ADR) и Milestone 1 (Foundation) завершены.
-Следующий шаг — Milestone 2 (Mission и Events), см. `docs/ROADMAP.md`.
+Milestone 0, 1 и 2 завершены. Следующий шаг — Milestone 3 (Model Gateway),
+см. `docs/ROADMAP.md`.

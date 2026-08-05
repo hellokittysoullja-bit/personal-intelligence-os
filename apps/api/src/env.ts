@@ -7,6 +7,11 @@ const envSchema = z.object({
   LOG_LEVEL: z
     .enum(["fatal", "error", "warn", "info", "debug", "trace", "silent"])
     .default("info"),
+  // Единственный владелец системы (docs/SECURITY.md §11) — до появления
+  // аутентификации все запросы обслуживаются от его имени.
+  OWNER_ID: z.string().min(1).default("owner"),
+  // Источник, которому разрешён CORS-доступ к API (apps/web).
+  WEB_ORIGIN: z.string().min(1).default("http://localhost:3000"),
 });
 
 export type Env = z.infer<typeof envSchema>;

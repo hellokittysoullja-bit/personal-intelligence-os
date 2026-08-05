@@ -1,7 +1,15 @@
 import path from "node:path";
-import dotenv from "dotenv";
-import { createDatabaseClient } from "@pios/database";
+import { createCreateMission } from "@pios/application";
+import {
+  createDatabaseClient,
+  createEventBus,
+  createEventStore,
+  createMissionRepository,
+  createTaskRepository,
+  createUnitOfWork,
+} from "@pios/database";
 import { createLogger } from "@pios/observability";
+import dotenv from "dotenv";
 import { loadEnv } from "./env";
 import { buildServer } from "./server";
 
@@ -15,7 +23,27 @@ async function main(): Promise<void> {
   const env = loadEnv();
   const logger = createLogger({ service: "api", level: env.LOG_LEVEL });
   const db = createDatabaseClient(env.DATABASE_URL);
-  const app = buildServer({ logger, db });
+
+  const eventBus = createEventBus(db.sql);
+  await eventBus.start();
+
+  const unitOfWork = createUnitOfWork(db.db);
+  const missionRepository = createMissionRepository(db.db);
+  const taskRepository = createTaskRepository(db.db);
+  const eventStore = createEventStore(db.db);
+  const createMission = createCreateMission(unitOfWork);
+
+  const app = buildServer({
+    logger,
+    db,
+    ownerId: env.OWNER_ID,
+    webOrigin: env.WEB_ORIGIN,
+    createMission,
+    missionRepository,
+    taskRepository,
+    eventStore,
+    eventBus,
+  });
 
   await app.listen({ port: env.API_PORT, host: "0.0.0.0" });
   logger.info({ port: env.API_PORT }, "apps/api started");
@@ -34,6 +62,7 @@ async function main(): Promise<void> {
 
     try {
       await app.close();
+      await eventBus.stop();
       await db.sql.end({ timeout: 5 });
       clearTimeout(forceExitTimer);
       logger.info("apps/api shut down cleanly");
