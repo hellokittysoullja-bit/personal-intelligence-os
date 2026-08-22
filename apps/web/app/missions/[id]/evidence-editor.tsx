@@ -49,6 +49,9 @@ export function EvidenceEditor({ mission }: Props) {
       <textarea id="evidence-excerpt" required rows={4} value={excerpt} onChange={(event) => setExcerpt(event.target.value)} style={{ display: "block", width: "100%", margin: "0.25rem 0 0.75rem" }} />
       <button type="submit" disabled={saving}>{saving ? "Сохраняю..." : "Добавить источник"}</button>
     </form>
-    {items.length > 0 && <ul>{items.map((item) => <li key={item.id}><a href={item.sourceUrl} target="_blank" rel="noreferrer">{item.title}</a> — {item.excerpt}</li>)}</ul>}
+    {items.length > 0 && <>
+      <p><a href={`/api/pios/missions/${mission.id}/evidence/dossier`} target="_blank" rel="noreferrer">Открыть Evidence Dossier (Markdown)</a></p>
+      <ul>{items.map((item) => <li key={item.id}><a href={item.sourceUrl} target="_blank" rel="noreferrer">{item.title}</a> — {item.excerpt}</li>)}</ul>
+    </>}
   </section>;
 }

@@ -10,6 +10,7 @@ export type {
   UpdateMissionContract,
   UpdateMissionContractInput,
 } from "./mission-contract";
+export { buildEvidenceDossier } from "./build-evidence-dossier";
 export { createCaptureOwnerEvidence } from "./capture-owner-evidence";
 export type { CaptureOwnerEvidence, CaptureOwnerEvidenceInput } from "./capture-owner-evidence";
 export { createPlanResearchMission } from "./plan-research-mission";

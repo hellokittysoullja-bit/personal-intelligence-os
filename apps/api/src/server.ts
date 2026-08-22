@@ -1,5 +1,8 @@
 import { timingSafeEqual } from "node:crypto";
 import cors from "@fastify/cors";
+import {
+  buildEvidenceDossier,
+} from "@pios/application";
 import type {
   CaptureOwnerEvidence,
   ConfirmMissionContract,
@@ -227,6 +230,22 @@ export function buildServer({
       if (domainError) return domainError;
       throw error;
     }
+  });
+
+  app.get("/missions/:id/evidence/dossier", async (request, reply) => {
+    const params = missionParamsSchema.safeParse(request.params);
+    if (!params.success) {
+      reply.code(400);
+      return { error: "invalid_path_params", details: params.error.flatten() };
+    }
+    const mission = await missionRepository.getById(params.data.id);
+    if (!mission || mission.ownerId !== ownerId) {
+      reply.code(404);
+      return { error: "mission_not_found" };
+    }
+    const evidence = await evidenceRepository.listByMission(params.data.id);
+    reply.type("text/markdown; charset=utf-8");
+    return buildEvidenceDossier(mission, evidence);
   });
 
   app.get("/missions/:id/evidence", async (request, reply) => {
