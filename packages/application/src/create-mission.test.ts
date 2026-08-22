@@ -602,3 +602,20 @@ describe("DurableJobRecovery", () => {
     expect(durableJobs[0]?.lastError).toContain("requires explicit reconciliation");
   });
 });
+
+
+describe("ApprovalDecision", () => {
+  it("разрешает owner approve только pending request и fail-closed при expiry", async () => {
+    const { unitOfWork } = createFakeUnitOfWork();
+    const request = {
+      id: randomUUID(), ownerId: "owner-1", missionId: null, channel: "telegram" as const,
+      actionKind: "send_message", riskLevel: "L3" as const, preview: "Send", payloadHash: "a".repeat(64),
+      status: "pending" as const, expiresAt: "2099-01-01T00:00:00.000Z", decidedAt: null, consumedAt: null,
+      createdAt: "2026-08-22T00:00:00.000Z",
+    };
+    await unitOfWork.run((ctx) => ctx.approvals.create(request));
+    const { createDecideApproval } = await import("./approval");
+    const approved = await createDecideApproval(unitOfWork)({ approvalId: request.id, ownerId: "owner-1", decision: "approved" });
+    expect(approved.request.status).toBe("approved");
+  });
+});

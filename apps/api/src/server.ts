@@ -5,6 +5,7 @@ import {
 } from "@pios/application";
 import type {
   CaptureOwnerEvidence,
+  DecideApproval,
   CapturePublicEvidence,
   ConfirmMissionContract,
   CreateMemoryCandidate,
@@ -18,6 +19,9 @@ import type {
   VerifyResearchReport,
 } from "@pios/application";
 import {
+  approvalResponseSchema,
+  decideApprovalRequestSchema,
+  listApprovalsResponseSchema,
   captureOwnerEvidenceRequestSchema,
   capturePublicEvidenceRequestSchema,
   captureOwnerEvidenceResponseSchema,
@@ -52,6 +56,7 @@ import {
 } from "@pios/database";
 import {
   DomainError,
+  type ApprovalRepository,
   type EvidenceRepository,
   type EventStore,
   type MissionRepository,
@@ -86,6 +91,7 @@ export interface BuildServerOptions {
   webOrigin: string;
   authToken?: string;
   createMission: CreateMission;
+  decideApproval: DecideApproval;
   createMemoryCandidate: CreateMemoryCandidate;
   approveMemory: ApproveMemory;
   activateMemory: ActivateMemory;
@@ -98,6 +104,7 @@ export interface BuildServerOptions {
   generateResearchReport?: GenerateResearchReport;
   verifyResearchReport?: VerifyResearchReport;
   missionRepository: MissionRepository;
+  approvalRepository: ApprovalRepository;
   memoryRepository: MemoryRepository;
   taskRepository: TaskRepository;
   evidenceRepository: EvidenceRepository;
@@ -124,6 +131,7 @@ export function buildServer({
   webOrigin,
   authToken,
   createMission,
+  decideApproval,
   createMemoryCandidate,
   approveMemory,
   activateMemory,
@@ -136,6 +144,7 @@ export function buildServer({
   generateResearchReport,
   verifyResearchReport,
   missionRepository,
+  approvalRepository,
   memoryRepository,
   taskRepository,
   evidenceRepository,
@@ -206,6 +215,32 @@ export function buildServer({
     reply.code(status);
     return { error: error.code.toLowerCase() };
   }
+
+  app.get("/approvals", async () => {
+    const approvals = await approvalRepository.listPendingByOwner(ownerId);
+    return listApprovalsResponseSchema.parse({ approvals });
+  });
+
+  app.post("/approvals/:id/decision", async (request, reply) => {
+    const params = missionParamsSchema.safeParse(request.params);
+    const body = decideApprovalRequestSchema.safeParse(request.body);
+    if (!params.success || !body.success) {
+      reply.code(400);
+      return { error: "invalid_request" };
+    }
+    try {
+      const { request: approval } = await decideApproval({
+        approvalId: params.data.id,
+        ownerId,
+        decision: body.data.decision,
+      });
+      return approvalResponseSchema.parse({ approval });
+    } catch (error) {
+      const domainError = sendDomainError(error, reply);
+      if (domainError) return domainError;
+      throw error;
+    }
+  });
 
   app.post("/memories", async (request, reply) => {
     const body = createMemoryCandidateRequestSchema.safeParse(request.body);

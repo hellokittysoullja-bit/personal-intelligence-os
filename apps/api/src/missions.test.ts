@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import {
   createCaptureOwnerEvidence,
+  createDecideApproval,
   createCapturePublicEvidence,
   createConfirmMissionContract,
   createCreateMission,
@@ -16,6 +17,7 @@ import {
   createEventBus,
   createEventStore,
   createEvidenceRepository,
+  createApprovalRepository,
   createMissionRepository,
   createMemoryRepository,
   createResearchReportRepository,
@@ -36,6 +38,7 @@ describe.skipIf(!process.env.DATABASE_URL)("apps/api mission routes (real Postgr
 
     const unitOfWork = createUnitOfWork(db.db);
     const missionRepository = createMissionRepository(db.db);
+    const approvalRepository = createApprovalRepository(db.db);
     const memoryRepository = createMemoryRepository(db.db);
     const taskRepository = createTaskRepository(db.db);
     const eventStore = createEventStore(db.db);
@@ -43,6 +46,7 @@ describe.skipIf(!process.env.DATABASE_URL)("apps/api mission routes (real Postgr
     const researchReportRepository = createResearchReportRepository(db.db);
     const researchReportVerificationRepository = createResearchReportVerificationRepository(db.db);
     const createMission = createCreateMission(unitOfWork);
+    const decideApproval = createDecideApproval(unitOfWork);
     const createMemoryCandidate = createCreateMemoryCandidate(unitOfWork);
     const approveMemory = createApproveMemory(unitOfWork);
     const activateMemory = createActivateMemory(unitOfWork);
@@ -59,6 +63,7 @@ describe.skipIf(!process.env.DATABASE_URL)("apps/api mission routes (real Postgr
       ownerId: `test-owner-${Date.now()}`,
       webOrigin: "http://localhost:3000",
       createMission,
+      decideApproval,
       createMemoryCandidate,
       approveMemory,
       activateMemory,
@@ -69,6 +74,7 @@ describe.skipIf(!process.env.DATABASE_URL)("apps/api mission routes (real Postgr
       confirmMissionContract,
       planResearchMission,
       missionRepository,
+      approvalRepository,
       memoryRepository,
       taskRepository,
       evidenceRepository,

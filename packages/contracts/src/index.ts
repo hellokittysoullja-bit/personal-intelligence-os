@@ -80,6 +80,19 @@ export type {
   MemoryType,
 } from "./memory";
 
+export {
+  approvalDtoSchema,
+  approvalResponseSchema,
+  decideApprovalRequestSchema,
+  listApprovalsResponseSchema,
+} from "./approval";
+export type {
+  ApprovalDto,
+  ApprovalResponse,
+  DecideApprovalRequest,
+  ListApprovalsResponse,
+} from "./approval";
+
 export { eventDtoSchema, listEventsResponseSchema } from "./event";
 export type { EventDto, ListEventsResponse } from "./event";
 

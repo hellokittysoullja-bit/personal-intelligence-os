@@ -1,6 +1,7 @@
 import path from "node:path";
 import {
   createCaptureOwnerEvidence,
+  createDecideApproval,
   createCapturePublicEvidence,
   createConfirmMissionContract,
   createCreateMission,
@@ -18,6 +19,7 @@ import {
   createEventBus,
   createEventStore,
   createEvidenceRepository,
+  createApprovalRepository,
   createMissionRepository,
   createMemoryRepository,
   createResearchReportRepository,
@@ -47,6 +49,7 @@ async function main(): Promise<void> {
 
   const unitOfWork = createUnitOfWork(db.db);
   const missionRepository = createMissionRepository(db.db);
+  const approvalRepository = createApprovalRepository(db.db);
   const memoryRepository = createMemoryRepository(db.db);
   const taskRepository = createTaskRepository(db.db);
   const eventStore = createEventStore(db.db);
@@ -54,6 +57,7 @@ async function main(): Promise<void> {
   const researchReportRepository = createResearchReportRepository(db.db);
   const researchReportVerificationRepository = createResearchReportVerificationRepository(db.db);
   const createMission = createCreateMission(unitOfWork);
+  const decideApproval = createDecideApproval(unitOfWork);
   const createMemoryCandidate = createCreateMemoryCandidate(unitOfWork);
   const approveMemory = createApproveMemory(unitOfWork);
   const activateMemory = createActivateMemory(unitOfWork);
@@ -98,6 +102,7 @@ async function main(): Promise<void> {
     webOrigin: env.WEB_ORIGIN,
     authToken: env.API_AUTH_TOKEN,
     createMission,
+    decideApproval,
     createMemoryCandidate,
     approveMemory,
     activateMemory,
@@ -110,6 +115,7 @@ async function main(): Promise<void> {
     generateResearchReport,
     verifyResearchReport,
     missionRepository,
+    approvalRepository,
     memoryRepository,
     taskRepository,
     evidenceRepository,

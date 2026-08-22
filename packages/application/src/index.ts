@@ -16,6 +16,7 @@ export { createCapturePublicEvidence } from "./capture-public-evidence";
 export { createGenerateResearchReport } from "./generate-research-report";
 export { createVerifyResearchReport } from "./verify-research-report";
 export { createReconcileDurableJobs } from "./reconcile-durable-jobs";
+export { createDecideApproval } from "./approval";
 export {
   createActivateMemory,
   createApproveMemory,
@@ -27,6 +28,7 @@ export type { CapturePublicEvidence, CapturePublicEvidenceInput } from "./captur
 export type { GenerateResearchReport, GenerateResearchReportInput } from "./generate-research-report";
 export type { VerifyResearchReport, VerifyResearchReportInput } from "./verify-research-report";
 export type { ReconcileDurableJobs } from "./reconcile-durable-jobs";
+export type { DecideApproval, DecideApprovalInput } from "./approval";
 export type {
   ActivateMemory,
   ApproveMemory,
