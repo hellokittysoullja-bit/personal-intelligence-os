@@ -1,4 +1,4 @@
-import type { Evidence, MissionBudget } from "@pios/domain";
+import type { Evidence, MissionBudget, ResearchReport } from "@pios/domain";
 import { index, integer, jsonb, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
 
 /** docs/DOMAIN_MODEL.md §1 */
@@ -92,6 +92,24 @@ export const evidence = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [index("evidence_mission_id_created_at_idx").on(table.missionId, table.createdAt)],
+);
+
+/** Версионируемые черновики отчётов, где все citation IDs указывают на evidence. */
+export const researchReports = pgTable(
+  "research_reports",
+  {
+    id: uuid("id").primaryKey(),
+    ownerId: text("owner_id").notNull(),
+    missionId: uuid("mission_id")
+      .notNull()
+      .references(() => missions.id),
+    status: text("status").notNull(),
+    content: jsonb("content").notNull().$type<ResearchReport["content"]>(),
+    citedEvidenceIds: jsonb("cited_evidence_ids").notNull().$type<string[]>(),
+    model: jsonb("model").notNull().$type<ResearchReport["model"]>(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index("research_reports_mission_id_created_at_idx").on(table.missionId, table.createdAt)],
 );
 
 /**

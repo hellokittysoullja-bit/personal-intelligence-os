@@ -1,5 +1,6 @@
 import {
   createCaptureOwnerEvidence,
+  createCapturePublicEvidence,
   createConfirmMissionContract,
   createCreateMission,
   createPlanResearchMission,
@@ -11,6 +12,7 @@ import {
   createEventStore,
   createEvidenceRepository,
   createMissionRepository,
+  createResearchReportRepository,
   createTaskRepository,
   createUnitOfWork,
 } from "@pios/database";
@@ -30,8 +32,10 @@ describe.skipIf(!process.env.DATABASE_URL)("apps/api mission routes (real Postgr
     const taskRepository = createTaskRepository(db.db);
     const eventStore = createEventStore(db.db);
     const evidenceRepository = createEvidenceRepository(db.db);
+    const researchReportRepository = createResearchReportRepository(db.db);
     const createMission = createCreateMission(unitOfWork);
     const captureOwnerEvidence = createCaptureOwnerEvidence(unitOfWork);
+    const capturePublicEvidence = createCapturePublicEvidence(unitOfWork);
     const updateMissionContract = createUpdateMissionContract(unitOfWork);
     const confirmMissionContract = createConfirmMissionContract(unitOfWork);
     const planResearchMission = createPlanResearchMission(unitOfWork);
@@ -43,12 +47,14 @@ describe.skipIf(!process.env.DATABASE_URL)("apps/api mission routes (real Postgr
       webOrigin: "http://localhost:3000",
       createMission,
       captureOwnerEvidence,
+      capturePublicEvidence,
       updateMissionContract,
       confirmMissionContract,
       planResearchMission,
       missionRepository,
       taskRepository,
       evidenceRepository,
+      researchReportRepository,
       eventStore,
       eventBus,
     });
@@ -62,6 +68,22 @@ describe.skipIf(!process.env.DATABASE_URL)("apps/api mission routes (real Postgr
       },
     };
   }
+
+  it("POST /missions/:id/reports/generate безопасно недоступен без server-side model config", async () => {
+    const { app, teardown } = await setup();
+    try {
+      const mission = await app.inject({ method: "POST", url: "/missions", payload: { rawRequest: "Исследуй рынок" } });
+      const response = await app.inject({
+        method: "POST",
+        url: `/missions/${mission.json().mission.id as string}/reports/generate`,
+        payload: {},
+      });
+      expect(response.statusCode).toBe(503);
+      expect(response.json().error).toBe("model_not_configured");
+    } finally {
+      await teardown();
+    }
+  });
 
   it("POST /missions отклоняет пустой или пробельный rawRequest", async () => {
     const { app, teardown } = await setup();

@@ -43,6 +43,9 @@ importers:
       '@pios/domain':
         specifier: workspace:*
         version: link:../../packages/domain
+      '@pios/model-gateway':
+        specifier: workspace:*
+        version: link:../../packages/model-gateway
       '@pios/observability':
         specifier: workspace:*
         version: link:../../packages/observability

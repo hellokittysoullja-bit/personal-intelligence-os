@@ -32,6 +32,8 @@ export {
 export type { Task, TaskStatus } from "./task";
 export { evidenceSchema } from "./evidence";
 export type { Evidence } from "./evidence";
+export { researchReportClaimSchema, researchReportContentSchema, researchReportSchema } from "./research-report";
+export type { ResearchReport, ResearchReportContent } from "./research-report";
 export { capabilityProfiles } from "./model";
 export type {
   CapabilityProfile,
@@ -51,6 +53,7 @@ export {
   createMissionCreatedEvent,
   createMissionResearchPlannedEvent,
   createResearchEvidenceCapturedEvent,
+  createResearchReportDraftedEvent,
   domainEventSchema,
 } from "./event";
 export type {
@@ -59,12 +62,14 @@ export type {
   MissionCreatedPayload,
   MissionResearchPlannedPayload,
   ResearchEvidenceCapturedPayload,
+  ResearchReportDraftedPayload,
 } from "./event";
 export type {
   EvidenceRepository,
   EventStore,
   GoalRepository,
   MissionRepository,
+  ResearchReportRepository,
   TaskRepository,
   UnitOfWork,
   UnitOfWorkContext,

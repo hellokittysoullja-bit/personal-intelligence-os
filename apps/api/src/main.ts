@@ -5,6 +5,7 @@ import {
   createConfirmMissionContract,
   createCreateMission,
   createPlanResearchMission,
+  createGenerateResearchReport,
   createUpdateMissionContract,
 } from "@pios/application";
 import {
@@ -13,10 +14,12 @@ import {
   createEventStore,
   createEvidenceRepository,
   createMissionRepository,
+  createResearchReportRepository,
   createTaskRepository,
   createUnitOfWork,
 } from "@pios/database";
 import { createLogger } from "@pios/observability";
+import { ConfiguredModelRouter, OpenAiCompatibleProvider } from "@pios/model-gateway";
 import dotenv from "dotenv";
 import { loadEnv } from "./env";
 import { buildServer } from "./server";
@@ -40,12 +43,28 @@ async function main(): Promise<void> {
   const taskRepository = createTaskRepository(db.db);
   const eventStore = createEventStore(db.db);
   const evidenceRepository = createEvidenceRepository(db.db);
+  const researchReportRepository = createResearchReportRepository(db.db);
   const createMission = createCreateMission(unitOfWork);
   const captureOwnerEvidence = createCaptureOwnerEvidence(unitOfWork);
   const capturePublicEvidence = createCapturePublicEvidence(unitOfWork);
   const updateMissionContract = createUpdateMissionContract(unitOfWork);
   const confirmMissionContract = createConfirmMissionContract(unitOfWork);
   const planResearchMission = createPlanResearchMission(unitOfWork);
+  const modelRouter = env.PIOS_MODEL_API_BASE && env.PIOS_MODEL_API_KEY && env.PIOS_MODEL_RESEARCH_LONG_CONTEXT
+    ? new ConfiguredModelRouter(
+      [new OpenAiCompatibleProvider({
+        id: env.PIOS_MODEL_PROVIDER_ID,
+        baseUrl: env.PIOS_MODEL_API_BASE,
+        apiKey: env.PIOS_MODEL_API_KEY,
+      })],
+      [{
+        capability: "research_long_context",
+        providerId: env.PIOS_MODEL_PROVIDER_ID,
+        model: env.PIOS_MODEL_RESEARCH_LONG_CONTEXT,
+      }],
+    )
+    : undefined;
+  const generateResearchReport = modelRouter ? createGenerateResearchReport(unitOfWork, modelRouter) : undefined;
 
   const app = buildServer({
     logger,
@@ -59,9 +78,11 @@ async function main(): Promise<void> {
     updateMissionContract,
     confirmMissionContract,
     planResearchMission,
+    generateResearchReport,
     missionRepository,
     taskRepository,
     evidenceRepository,
+    researchReportRepository,
     eventStore,
     eventBus,
   });

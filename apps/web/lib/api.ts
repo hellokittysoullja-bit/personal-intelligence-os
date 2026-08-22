@@ -6,12 +6,16 @@ import type {
   CreateMissionResponse,
   EventDto,
   GetMissionResponse,
+  GenerateResearchReportRequest,
+  GenerateResearchReportResponse,
   ListEvidenceResponse,
   ListMissionsResponse,
+  ListResearchReportsResponse,
   EvidenceDto,
   ListTasksResponse,
   MissionDto,
   PlanResearchMissionRequest,
+  ResearchReportDto,
   UpdateMissionContractRequest,
 } from "@pios/contracts";
 
@@ -112,6 +116,25 @@ export async function listEvidence(missionId: string): Promise<EvidenceDto[]> {
   const response = await fetch(`${getApiUrl()}/missions/${missionId}/evidence`, { cache: "no-store" });
   const data = await parseJsonOrThrow<ListEvidenceResponse>(response);
   return data.evidence;
+}
+
+export async function generateResearchReport(
+  missionId: string,
+  request: GenerateResearchReportRequest = {},
+): Promise<ResearchReportDto> {
+  const response = await fetch(`${getApiUrl()}/missions/${missionId}/reports/generate`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(request),
+  });
+  const data = await parseJsonOrThrow<GenerateResearchReportResponse>(response);
+  return data.report;
+}
+
+export async function listResearchReports(missionId: string): Promise<ResearchReportDto[]> {
+  const response = await fetch(`${getApiUrl()}/missions/${missionId}/reports`, { cache: "no-store" });
+  const data = await parseJsonOrThrow<ListResearchReportsResponse>(response);
+  return data.reports;
 }
 
 export async function getMission(id: string): Promise<MissionDto> {

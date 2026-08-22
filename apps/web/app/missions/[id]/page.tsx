@@ -6,6 +6,7 @@ import { use, useCallback, useEffect, useState, type CSSProperties } from "react
 import { getMission, listTasks, subscribeToMissionEvents } from "../../../lib/api";
 import { ContractEditor } from "./contract-editor";
 import { EvidenceEditor } from "./evidence-editor";
+import { ReportEditor } from "./report-editor";
 
 const containerStyle: CSSProperties = {
   fontFamily: "system-ui, sans-serif",
@@ -121,6 +122,7 @@ export default function MissionDetailPage({ params }: { params: Promise<{ id: st
           )}
 
           <EvidenceEditor mission={mission} />
+          <ReportEditor mission={mission} />
 
           <h2>Таймлайн событий</h2>
           {events.length === 0 ? (

@@ -181,3 +181,47 @@ export function createMissionResearchPlannedEvent(
     schemaVersion: 1,
   };
 }
+
+
+export interface ResearchReportDraftedPayload {
+  reportId: string;
+  citedEvidenceIds: string[];
+  providerId: string;
+  model: string;
+  requestId: string;
+  repairAttempted: boolean;
+}
+
+export function createResearchReportDraftedEvent(params: {
+  ownerId: string;
+  missionId: string;
+  reportId: string;
+  citedEvidenceIds: string[];
+  providerId: string;
+  model: string;
+  requestId: string;
+  repairAttempted: boolean;
+  traceId?: string;
+}): DomainEvent {
+  return {
+    eventId: randomUUID(),
+    eventType: "ResearchReportDrafted",
+    timestamp: new Date().toISOString(),
+    ownerId: params.ownerId,
+    missionId: params.missionId,
+    taskId: null,
+    agentJobId: null,
+    traceId: params.traceId ?? randomUUID(),
+    causationId: null,
+    correlationId: params.missionId,
+    payload: {
+      reportId: params.reportId,
+      citedEvidenceIds: params.citedEvidenceIds,
+      providerId: params.providerId,
+      model: params.model,
+      requestId: params.requestId,
+      repairAttempted: params.repairAttempted,
+    } satisfies ResearchReportDraftedPayload,
+    schemaVersion: 1,
+  };
+}

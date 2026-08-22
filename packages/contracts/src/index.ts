@@ -37,6 +37,19 @@ export type {
   ListEvidenceResponse,
 } from "./evidence";
 
+export {
+  generateResearchReportRequestSchema,
+  generateResearchReportResponseSchema,
+  listResearchReportsResponseSchema,
+  researchReportDtoSchema,
+} from "./research-report";
+export type {
+  GenerateResearchReportRequest,
+  GenerateResearchReportResponse,
+  ListResearchReportsResponse,
+  ResearchReportDto,
+} from "./research-report";
+
 export { eventDtoSchema, listEventsResponseSchema } from "./event";
 export type { EventDto, ListEventsResponse } from "./event";
 

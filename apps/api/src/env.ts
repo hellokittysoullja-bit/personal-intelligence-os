@@ -15,12 +15,26 @@ export const envSchema = z.object({
   // В production токен обязателен. Web-приложение передаёт его server-side через
   // прокси; он никогда не должен попадать в NEXT_PUBLIC_* переменные.
   API_AUTH_TOKEN: z.string().min(32).optional(),
+  // Необязательный OpenAI-compatible gateway. Все три переменные должны быть
+  // заданы вместе; секрет никогда не покидает server-side process.
+  PIOS_MODEL_API_BASE: z.string().url().optional(),
+  PIOS_MODEL_API_KEY: z.string().min(1).optional(),
+  PIOS_MODEL_RESEARCH_LONG_CONTEXT: z.string().min(1).optional(),
+  PIOS_MODEL_PROVIDER_ID: z.string().min(1).default("openai-compatible"),
 }).superRefine((env, context) => {
   if (env.NODE_ENV === "production" && !env.API_AUTH_TOKEN) {
     context.addIssue({
       code: z.ZodIssueCode.custom,
       path: ["API_AUTH_TOKEN"],
       message: "API_AUTH_TOKEN is required in production",
+    });
+  }
+  const modelFields = [env.PIOS_MODEL_API_BASE, env.PIOS_MODEL_API_KEY, env.PIOS_MODEL_RESEARCH_LONG_CONTEXT];
+  if (modelFields.some(Boolean) && !modelFields.every(Boolean)) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["PIOS_MODEL_API_BASE"],
+      message: "PIOS_MODEL_API_BASE, PIOS_MODEL_API_KEY and PIOS_MODEL_RESEARCH_LONG_CONTEXT must be set together",
     });
   }
 });

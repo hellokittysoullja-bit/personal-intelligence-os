@@ -7,6 +7,7 @@ import type {
   CaptureOwnerEvidence,
   CapturePublicEvidence,
   ConfirmMissionContract,
+  GenerateResearchReport,
   CreateMission,
   PlanResearchMission,
   UpdateMissionContract,
@@ -19,15 +20,19 @@ import {
   createMissionRequestSchema,
   createMissionResponseSchema,
   eventDtoSchema,
+  generateResearchReportRequestSchema,
+  generateResearchReportResponseSchema,
   getMissionResponseSchema,
   healthResponseSchema,
   listEventsResponseSchema,
   listEvidenceResponseSchema,
   listMissionsResponseSchema,
+  listResearchReportsResponseSchema,
   listTasksResponseSchema,
   planResearchMissionRequestSchema,
   updateMissionContractRequestSchema,
 } from "@pios/contracts";
+import { ModelGatewayError } from "@pios/model-gateway";
 import {
   pingDatabase,
   type DatabaseClient,
@@ -38,6 +43,7 @@ import {
   type EvidenceRepository,
   type EventStore,
   type MissionRepository,
+  type ResearchReportRepository,
   type TaskRepository,
 } from "@pios/domain";
 import type { Logger } from "@pios/observability";
@@ -71,9 +77,11 @@ export interface BuildServerOptions {
   updateMissionContract: UpdateMissionContract;
   confirmMissionContract: ConfirmMissionContract;
   planResearchMission: PlanResearchMission;
+  generateResearchReport?: GenerateResearchReport;
   missionRepository: MissionRepository;
   taskRepository: TaskRepository;
   evidenceRepository: EvidenceRepository;
+  researchReportRepository: ResearchReportRepository;
   eventStore: EventStore;
   eventBus: EventBus;
 }
@@ -100,9 +108,11 @@ export function buildServer({
   updateMissionContract,
   confirmMissionContract,
   planResearchMission,
+  generateResearchReport,
   missionRepository,
   taskRepository,
   evidenceRepository,
+  researchReportRepository,
   eventStore,
   eventBus,
 }: BuildServerOptions) {
@@ -227,6 +237,47 @@ export function buildServer({
       if (domainError) return domainError;
       throw error;
     }
+  });
+
+  app.post("/missions/:id/reports/generate", async (request, reply) => {
+    const params = missionParamsSchema.safeParse(request.params);
+    const body = generateResearchReportRequestSchema.safeParse(request.body);
+    if (!params.success || !body.success) {
+      reply.code(400);
+      return { error: "invalid_request" };
+    }
+    if (!generateResearchReport) {
+      reply.code(503);
+      return { error: "model_not_configured" };
+    }
+    try {
+      const { report } = await generateResearchReport({ missionId: params.data.id, ownerId });
+      reply.code(201);
+      return generateResearchReportResponseSchema.parse({ report });
+    } catch (error) {
+      const domainError = sendDomainError(error, reply);
+      if (domainError) return domainError;
+      if (error instanceof ModelGatewayError) {
+        reply.code(error.code === "configuration" ? 503 : 502);
+        return { error: error.code === "configuration" ? "model_not_configured" : "model_generation_failed" };
+      }
+      throw error;
+    }
+  });
+
+  app.get("/missions/:id/reports", async (request, reply) => {
+    const params = missionParamsSchema.safeParse(request.params);
+    if (!params.success) {
+      reply.code(400);
+      return { error: "invalid_path_params", details: params.error.flatten() };
+    }
+    const mission = await missionRepository.getById(params.data.id);
+    if (!mission || mission.ownerId !== ownerId) {
+      reply.code(404);
+      return { error: "mission_not_found" };
+    }
+    const reports = await researchReportRepository.listByMission(params.data.id);
+    return listResearchReportsResponseSchema.parse({ reports });
   });
 
   app.post("/missions/:id/evidence/fetch", async (request, reply) => {
