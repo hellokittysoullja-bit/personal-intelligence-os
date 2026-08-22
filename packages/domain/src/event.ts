@@ -451,3 +451,83 @@ export function createApprovalExpiredEvent(
 ): DomainEvent {
   return createApprovalLifecycleEvent("ApprovalExpired", approval, traceId);
 }
+
+export interface BrowserSessionLifecyclePayload {
+  sessionId: string;
+  profileId: string;
+  status: string;
+  controlOwner: string;
+  reobservationRequired: boolean;
+  version: number;
+}
+
+function createBrowserSessionLifecycleEvent(
+  eventType: "BrowserSessionStarted" | "BrowserSessionHumanTakeover" | "BrowserSessionControlReturned" | "BrowserSessionObserved" | "BrowserSessionClosed",
+  session: {
+    id: string;
+    ownerId: string;
+    profileId: string;
+    status: string;
+    controlOwner: string;
+    reobservationRequired: boolean;
+    version: number;
+  },
+  traceId?: string,
+): DomainEvent {
+  return {
+    eventId: randomUUID(),
+    eventType,
+    timestamp: new Date().toISOString(),
+    ownerId: session.ownerId,
+    missionId: null,
+    taskId: null,
+    agentJobId: null,
+    traceId: traceId ?? randomUUID(),
+    causationId: null,
+    correlationId: session.id,
+    payload: {
+      sessionId: session.id,
+      profileId: session.profileId,
+      status: session.status,
+      controlOwner: session.controlOwner,
+      reobservationRequired: session.reobservationRequired,
+      version: session.version,
+    } satisfies BrowserSessionLifecyclePayload,
+    schemaVersion: 1,
+  };
+}
+
+export function createBrowserSessionStartedEvent(
+  session: Parameters<typeof createBrowserSessionLifecycleEvent>[1],
+  traceId?: string,
+): DomainEvent {
+  return createBrowserSessionLifecycleEvent("BrowserSessionStarted", session, traceId);
+}
+
+export function createBrowserSessionHumanTakeoverEvent(
+  session: Parameters<typeof createBrowserSessionLifecycleEvent>[1],
+  traceId?: string,
+): DomainEvent {
+  return createBrowserSessionLifecycleEvent("BrowserSessionHumanTakeover", session, traceId);
+}
+
+export function createBrowserSessionControlReturnedEvent(
+  session: Parameters<typeof createBrowserSessionLifecycleEvent>[1],
+  traceId?: string,
+): DomainEvent {
+  return createBrowserSessionLifecycleEvent("BrowserSessionControlReturned", session, traceId);
+}
+
+export function createBrowserSessionObservedEvent(
+  session: Parameters<typeof createBrowserSessionLifecycleEvent>[1],
+  traceId?: string,
+): DomainEvent {
+  return createBrowserSessionLifecycleEvent("BrowserSessionObserved", session, traceId);
+}
+
+export function createBrowserSessionClosedEvent(
+  session: Parameters<typeof createBrowserSessionLifecycleEvent>[1],
+  traceId?: string,
+): DomainEvent {
+  return createBrowserSessionLifecycleEvent("BrowserSessionClosed", session, traceId);
+}

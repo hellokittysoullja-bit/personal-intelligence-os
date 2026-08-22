@@ -80,6 +80,11 @@ export function createBrowserSessionRepository(executor: Executor): BrowserSessi
       const rows = await executor.select().from(browserSessions).where(eq(browserSessions.id, sessionId));
       return rows[0] ? sessionToDomain(rows[0]) : null;
     },
+    async listByOwner(ownerId) {
+      const rows = await executor.select().from(browserSessions)
+        .where(eq(browserSessions.ownerId, ownerId)).orderBy(asc(browserSessions.createdAt));
+      return rows.map(sessionToDomain);
+    },
     async update(session, expectedVersion) {
       const changed = await executor.update(browserSessions).set({
         status: session.status,

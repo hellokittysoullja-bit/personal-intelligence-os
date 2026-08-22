@@ -150,7 +150,10 @@ export const browserSessions = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (table) => [index("browser_sessions_profile_status_idx").on(table.profileId, table.status)],
+  (table) => [
+    index("browser_sessions_profile_status_idx").on(table.profileId, table.status),
+    index("browser_sessions_owner_created_at_idx").on(table.ownerId, table.createdAt),
+  ],
 );
 
 /** Durable worker control-plane: lease/heartbeat хранятся в БД и переживают рестарт процесса. */

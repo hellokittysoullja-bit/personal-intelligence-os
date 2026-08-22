@@ -33,6 +33,13 @@ import { createCreateMission } from "./create-mission";
 import { createDecideApproval } from "./approval";
 import { createCreateBrowserProfile, createDisableBrowserProfile } from "./browser-profile";
 import {
+  createCloseBrowserSession,
+  createRecordBrowserObservation,
+  createRequestBrowserHumanTakeover,
+  createReturnBrowserControlToAgent,
+  createStartBrowserSession,
+} from "./browser-session";
+import {
   createConfirmMissionContract,
   createUpdateMissionContract,
 } from "./mission-contract";
@@ -135,6 +142,7 @@ function createFakeUnitOfWork() {
   const browserSessionRepository: BrowserSessionRepository = {
     async create(session) { browserSessions.push(session); },
     async getById(sessionId) { return browserSessions.find((session) => session.id === sessionId) ?? null; },
+    async listByOwner(ownerId) { return browserSessions.filter((session) => session.ownerId === ownerId); },
     async update(session, expectedVersion) {
       const index = browserSessions.findIndex((item) => item.id === session.id && item.version === expectedVersion);
       if (index < 0) return false;
@@ -237,6 +245,44 @@ class QueueModelRouter implements ModelRouter {
     };
   }
 }
+
+describe("Browser session control plane", () => {
+  it("requires re-observation after human takeover before an agent session can become active again", async () => {
+    const { unitOfWork, browserSessions, events } = createFakeUnitOfWork();
+    const profile = await createCreateBrowserProfile(unitOfWork)({ ownerId: "owner-1", label: "Research", mode: "agent_isolated" });
+    const start = createStartBrowserSession(unitOfWork);
+    const observe = createRecordBrowserObservation(unitOfWork);
+    const takeover = createRequestBrowserHumanTakeover(unitOfWork);
+    const returnControl = createReturnBrowserControlToAgent(unitOfWork);
+    const close = createCloseBrowserSession(unitOfWork);
+
+    const started = await start({ ownerId: "owner-1", profileId: profile.profile.id });
+    expect(started.session).toMatchObject({ status: "paused", controlOwner: "agent", reobservationRequired: true, version: 1 });
+    const observed = await observe({ ownerId: "owner-1", sessionId: started.session.id, expectedVersion: 1 });
+    expect(observed.session).toMatchObject({ status: "active", reobservationRequired: false, version: 2 });
+    const human = await takeover({ ownerId: "owner-1", sessionId: observed.session.id, expectedVersion: 2 });
+    expect(human.session).toMatchObject({ status: "paused", controlOwner: "human", reobservationRequired: true, version: 3 });
+    const returned = await returnControl({ ownerId: "owner-1", sessionId: human.session.id, expectedVersion: 3 });
+    expect(returned.session).toMatchObject({ status: "paused", controlOwner: "agent", reobservationRequired: true, version: 4 });
+    const reobserved = await observe({ ownerId: "owner-1", sessionId: returned.session.id, expectedVersion: 4 });
+    const closed = await close({ ownerId: "owner-1", sessionId: reobserved.session.id, expectedVersion: 5 });
+    expect(closed.session).toMatchObject({ status: "closed", controlOwner: "paused", reobservationRequired: true, version: 6 });
+    expect(browserSessions).toHaveLength(1);
+    expect(events.slice(-6).map((event) => event.eventType)).toEqual([
+      "BrowserSessionStarted", "BrowserSessionObserved", "BrowserSessionHumanTakeover",
+      "BrowserSessionControlReturned", "BrowserSessionObserved", "BrowserSessionClosed",
+    ]);
+  });
+
+  it("starts an owner-shared session under human control", async () => {
+    const { unitOfWork } = createFakeUnitOfWork();
+    const profile = await createCreateBrowserProfile(unitOfWork)({ ownerId: "owner-1", label: "Shared", mode: "owner_shared" });
+    const session = await createStartBrowserSession(unitOfWork)({ ownerId: "owner-1", profileId: profile.profile.id });
+    expect(session.session).toMatchObject({ status: "paused", controlOwner: "human", reobservationRequired: true });
+    await expect(createRecordBrowserObservation(unitOfWork)({ ownerId: "owner-1", sessionId: session.session.id, expectedVersion: 1 }))
+      .rejects.toMatchObject({ code: "BROWSER_SESSION_INVALID_STATE" });
+  });
+});
 
 describe("Browser profile control plane", () => {
   it("creates and disables an owner profile with versioned audit events", async () => {

@@ -3,6 +3,10 @@ import {
   createCaptureOwnerEvidence,
   createCreateBrowserProfile,
   createDisableBrowserProfile,
+  createStartBrowserSession,
+  createRequestBrowserHumanTakeover,
+  createReturnBrowserControlToAgent,
+  createCloseBrowserSession,
   createDecideApproval,
   createCapturePublicEvidence,
   createConfirmMissionContract,
@@ -23,6 +27,7 @@ import {
   createEvidenceRepository,
   createApprovalRepository,
   createBrowserProfileRepository,
+  createBrowserSessionRepository,
   createMissionRepository,
   createMemoryRepository,
   createResearchReportRepository,
@@ -54,6 +59,7 @@ async function main(): Promise<void> {
   const missionRepository = createMissionRepository(db.db);
   const approvalRepository = createApprovalRepository(db.db);
   const browserProfileRepository = createBrowserProfileRepository(db.db);
+  const browserSessionRepository = createBrowserSessionRepository(db.db);
   const memoryRepository = createMemoryRepository(db.db);
   const taskRepository = createTaskRepository(db.db);
   const eventStore = createEventStore(db.db);
@@ -63,6 +69,10 @@ async function main(): Promise<void> {
   const createMission = createCreateMission(unitOfWork);
   const createBrowserProfile = createCreateBrowserProfile(unitOfWork);
   const disableBrowserProfile = createDisableBrowserProfile(unitOfWork);
+  const startBrowserSession = createStartBrowserSession(unitOfWork);
+  const requestBrowserHumanTakeover = createRequestBrowserHumanTakeover(unitOfWork);
+  const returnBrowserControlToAgent = createReturnBrowserControlToAgent(unitOfWork);
+  const closeBrowserSession = createCloseBrowserSession(unitOfWork);
   const decideApproval = createDecideApproval(unitOfWork);
   const createMemoryCandidate = createCreateMemoryCandidate(unitOfWork);
   const approveMemory = createApproveMemory(unitOfWork);
@@ -110,6 +120,10 @@ async function main(): Promise<void> {
     createMission,
     createBrowserProfile,
     disableBrowserProfile,
+    startBrowserSession,
+    requestBrowserHumanTakeover,
+    returnBrowserControlToAgent,
+    closeBrowserSession,
     decideApproval,
     createMemoryCandidate,
     approveMemory,
@@ -125,6 +139,7 @@ async function main(): Promise<void> {
     missionRepository,
     approvalRepository,
     browserProfileRepository,
+    browserSessionRepository,
     memoryRepository,
     taskRepository,
     evidenceRepository,

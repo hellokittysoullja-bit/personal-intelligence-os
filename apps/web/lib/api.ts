@@ -34,6 +34,9 @@ import type {
   BrowserProfileResponse,
   CreateBrowserProfileRequest,
   ListBrowserProfilesResponse,
+  BrowserSessionDto,
+  BrowserSessionResponse,
+  ListBrowserSessionsResponse,
 } from "@pios/contracts";
 
 export function getApiUrl(): string {
@@ -47,6 +50,39 @@ async function parseJsonOrThrow<T>(response: Response): Promise<T> {
   }
   return (await response.json()) as T;
 }
+
+export async function listBrowserSessions(): Promise<BrowserSessionDto[]> {
+  const response = await fetch(`${getApiUrl()}/browser/sessions`, { cache: "no-store" });
+  const data = await parseJsonOrThrow<ListBrowserSessionsResponse>(response);
+  return data.sessions;
+}
+
+export async function startBrowserSession(profileId: string): Promise<BrowserSessionDto> {
+  const response = await fetch(`${getApiUrl()}/browser/profiles/${profileId}/sessions`, { method: "POST" });
+  const data = await parseJsonOrThrow<BrowserSessionResponse>(response);
+  return data.session;
+}
+
+async function transitionBrowserSession(
+  sessionId: string,
+  action: "takeover" | "return-control" | "close",
+  expectedVersion: number,
+): Promise<BrowserSessionDto> {
+  const response = await fetch(`${getApiUrl()}/browser/sessions/${sessionId}/${action}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ expectedVersion }),
+  });
+  const data = await parseJsonOrThrow<BrowserSessionResponse>(response);
+  return data.session;
+}
+
+export const requestBrowserHumanTakeover = (sessionId: string, expectedVersion: number) =>
+  transitionBrowserSession(sessionId, "takeover", expectedVersion);
+export const returnBrowserControlToAgent = (sessionId: string, expectedVersion: number) =>
+  transitionBrowserSession(sessionId, "return-control", expectedVersion);
+export const closeBrowserSession = (sessionId: string, expectedVersion: number) =>
+  transitionBrowserSession(sessionId, "close", expectedVersion);
 
 export async function listBrowserProfiles(): Promise<BrowserProfileDto[]> {
   const response = await fetch(`${getApiUrl()}/browser/profiles`, { cache: "no-store" });

@@ -1,0 +1,1 @@
+CREATE INDEX "browser_sessions_owner_created_at_idx" ON "browser_sessions" USING btree ("owner_id","created_at");

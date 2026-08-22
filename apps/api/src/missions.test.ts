@@ -3,6 +3,10 @@ import {
   createCaptureOwnerEvidence,
   createCreateBrowserProfile,
   createDisableBrowserProfile,
+  createStartBrowserSession,
+  createRequestBrowserHumanTakeover,
+  createReturnBrowserControlToAgent,
+  createCloseBrowserSession,
   createDecideApproval,
   createCapturePublicEvidence,
   createConfirmMissionContract,
@@ -21,6 +25,7 @@ import {
   createEvidenceRepository,
   createApprovalRepository,
   createBrowserProfileRepository,
+  createBrowserSessionRepository,
   createMissionRepository,
   createMemoryRepository,
   createResearchReportRepository,
@@ -43,6 +48,7 @@ describe.skipIf(!process.env.DATABASE_URL)("apps/api mission routes (real Postgr
     const missionRepository = createMissionRepository(db.db);
     const approvalRepository = createApprovalRepository(db.db);
     const browserProfileRepository = createBrowserProfileRepository(db.db);
+    const browserSessionRepository = createBrowserSessionRepository(db.db);
     const memoryRepository = createMemoryRepository(db.db);
     const taskRepository = createTaskRepository(db.db);
     const eventStore = createEventStore(db.db);
@@ -52,6 +58,10 @@ describe.skipIf(!process.env.DATABASE_URL)("apps/api mission routes (real Postgr
     const createMission = createCreateMission(unitOfWork);
     const createBrowserProfile = createCreateBrowserProfile(unitOfWork);
     const disableBrowserProfile = createDisableBrowserProfile(unitOfWork);
+    const startBrowserSession = createStartBrowserSession(unitOfWork);
+    const requestBrowserHumanTakeover = createRequestBrowserHumanTakeover(unitOfWork);
+    const returnBrowserControlToAgent = createReturnBrowserControlToAgent(unitOfWork);
+    const closeBrowserSession = createCloseBrowserSession(unitOfWork);
     const decideApproval = createDecideApproval(unitOfWork);
     const createMemoryCandidate = createCreateMemoryCandidate(unitOfWork);
     const approveMemory = createApproveMemory(unitOfWork);
@@ -71,6 +81,10 @@ describe.skipIf(!process.env.DATABASE_URL)("apps/api mission routes (real Postgr
       createMission,
       createBrowserProfile,
       disableBrowserProfile,
+      startBrowserSession,
+      requestBrowserHumanTakeover,
+      returnBrowserControlToAgent,
+      closeBrowserSession,
       decideApproval,
       createMemoryCandidate,
       approveMemory,
@@ -84,6 +98,7 @@ describe.skipIf(!process.env.DATABASE_URL)("apps/api mission routes (real Postgr
       missionRepository,
       approvalRepository,
       browserProfileRepository,
+      browserSessionRepository,
       memoryRepository,
       taskRepository,
       evidenceRepository,
@@ -303,6 +318,52 @@ describe.skipIf(!process.env.DATABASE_URL)("apps/api mission routes (real Postgr
       });
       expect(stale.statusCode).toBe(409);
       expect(stale.json().error).toBe("browser_profile_version_conflict");
+    } finally {
+      await teardown();
+    }
+  });
+
+  it("управляет browser session control-plane без запуска Chromium или observation endpoint", async () => {
+    const { app, teardown } = await setup();
+    try {
+      const profile = await app.inject({
+        method: "POST", url: "/browser/profiles", payload: { label: "Research", mode: "agent_isolated" },
+      });
+      expect(profile.statusCode).toBe(201);
+
+      const started = await app.inject({ method: "POST", url: `/browser/profiles/${profile.json().profile.id}/sessions` });
+      expect(started.statusCode).toBe(201);
+      expect(started.json().session).toMatchObject({ status: "paused", controlOwner: "agent", reobservationRequired: true, version: 1 });
+
+      const invalidReturn = await app.inject({
+        method: "POST", url: `/browser/sessions/${started.json().session.id}/return-control`, payload: { expectedVersion: 1 },
+      });
+      expect(invalidReturn.statusCode).toBe(409);
+
+      const takeover = await app.inject({
+        method: "POST", url: `/browser/sessions/${started.json().session.id}/takeover`, payload: { expectedVersion: 1 },
+      });
+      expect(takeover.statusCode).toBe(200);
+      expect(takeover.json().session).toMatchObject({ status: "paused", controlOwner: "human", reobservationRequired: true, version: 2 });
+
+      const returned = await app.inject({
+        method: "POST", url: `/browser/sessions/${started.json().session.id}/return-control`, payload: { expectedVersion: 2 },
+      });
+      expect(returned.statusCode).toBe(200);
+      expect(returned.json().session).toMatchObject({ status: "paused", controlOwner: "agent", reobservationRequired: true, version: 3 });
+
+      const listed = await app.inject({ method: "GET", url: "/browser/sessions" });
+      expect(listed.statusCode).toBe(200);
+      expect(listed.json().sessions).toHaveLength(1);
+
+      const noObserveEndpoint = await app.inject({ method: "POST", url: `/browser/sessions/${started.json().session.id}/observe` });
+      expect(noObserveEndpoint.statusCode).toBe(404);
+
+      const closed = await app.inject({
+        method: "POST", url: `/browser/sessions/${started.json().session.id}/close`, payload: { expectedVersion: 3 },
+      });
+      expect(closed.statusCode).toBe(200);
+      expect(closed.json().session).toMatchObject({ status: "closed", controlOwner: "paused", version: 4 });
     } finally {
       await teardown();
     }

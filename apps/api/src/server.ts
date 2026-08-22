@@ -6,6 +6,10 @@ import {
 import type {
   CaptureOwnerEvidence,
   CreateBrowserProfile,
+  StartBrowserSession,
+  RequestBrowserHumanTakeover,
+  ReturnBrowserControlToAgent,
+  CloseBrowserSession,
   DecideApproval,
   DisableBrowserProfile,
   CapturePublicEvidence,
@@ -23,6 +27,9 @@ import type {
 import {
   approvalResponseSchema,
   browserProfileResponseSchema,
+  browserSessionResponseSchema,
+  browserSessionTransitionRequestSchema,
+  listBrowserSessionsResponseSchema,
   createBrowserProfileRequestSchema,
   disableBrowserProfileRequestSchema,
   listBrowserProfilesResponseSchema,
@@ -64,6 +71,7 @@ import {
   DomainError,
   type ApprovalRepository,
   type BrowserProfileRepository,
+  type BrowserSessionRepository,
   type EvidenceRepository,
   type EventStore,
   type MissionRepository,
@@ -100,6 +108,10 @@ export interface BuildServerOptions {
   createMission: CreateMission;
   createBrowserProfile: CreateBrowserProfile;
   disableBrowserProfile: DisableBrowserProfile;
+  startBrowserSession: StartBrowserSession;
+  requestBrowserHumanTakeover: RequestBrowserHumanTakeover;
+  returnBrowserControlToAgent: ReturnBrowserControlToAgent;
+  closeBrowserSession: CloseBrowserSession;
   decideApproval: DecideApproval;
   createMemoryCandidate: CreateMemoryCandidate;
   approveMemory: ApproveMemory;
@@ -115,6 +127,7 @@ export interface BuildServerOptions {
   missionRepository: MissionRepository;
   approvalRepository: ApprovalRepository;
   browserProfileRepository: BrowserProfileRepository;
+  browserSessionRepository: BrowserSessionRepository;
   memoryRepository: MemoryRepository;
   taskRepository: TaskRepository;
   evidenceRepository: EvidenceRepository;
@@ -143,6 +156,10 @@ export function buildServer({
   createMission,
   createBrowserProfile,
   disableBrowserProfile,
+  startBrowserSession,
+  requestBrowserHumanTakeover,
+  returnBrowserControlToAgent,
+  closeBrowserSession,
   decideApproval,
   createMemoryCandidate,
   approveMemory,
@@ -158,6 +175,7 @@ export function buildServer({
   missionRepository,
   approvalRepository,
   browserProfileRepository,
+  browserSessionRepository,
   memoryRepository,
   taskRepository,
   evidenceRepository,
@@ -297,6 +315,53 @@ export function buildServer({
       throw error;
     }
   });
+
+  app.get("/browser/sessions", async () => {
+    const sessions = await browserSessionRepository.listByOwner(ownerId);
+    return listBrowserSessionsResponseSchema.parse({ sessions });
+  });
+
+  app.post("/browser/profiles/:id/sessions", async (request, reply) => {
+    const params = missionParamsSchema.safeParse(request.params);
+    if (!params.success) {
+      reply.code(400);
+      return { error: "invalid_path_params" };
+    }
+    try {
+      const { session } = await startBrowserSession({ ownerId, profileId: params.data.id });
+      reply.code(201);
+      return browserSessionResponseSchema.parse({ session });
+    } catch (error) {
+      const domainError = sendDomainError(error, reply);
+      if (domainError) return domainError;
+      throw error;
+    }
+  });
+
+  function browserSessionTransitionRoute(
+    execute: (input: { ownerId: string; sessionId: string; expectedVersion: number }) => Promise<{ session: unknown }>,
+  ) {
+    return async (request: { params: unknown; body: unknown }, reply: { code(statusCode: number): unknown }) => {
+      const params = missionParamsSchema.safeParse(request.params);
+      const body = browserSessionTransitionRequestSchema.safeParse(request.body);
+      if (!params.success || !body.success) {
+        reply.code(400);
+        return { error: "invalid_request" };
+      }
+      try {
+        const { session } = await execute({ ownerId, sessionId: params.data.id, expectedVersion: body.data.expectedVersion });
+        return browserSessionResponseSchema.parse({ session });
+      } catch (error) {
+        const domainError = sendDomainError(error, reply);
+        if (domainError) return domainError;
+        throw error;
+      }
+    };
+  }
+
+  app.post("/browser/sessions/:id/takeover", browserSessionTransitionRoute(requestBrowserHumanTakeover));
+  app.post("/browser/sessions/:id/return-control", browserSessionTransitionRoute(returnBrowserControlToAgent));
+  app.post("/browser/sessions/:id/close", browserSessionTransitionRoute(closeBrowserSession));
 
   app.post("/memories", async (request, reply) => {
     const body = createMemoryCandidateRequestSchema.safeParse(request.body);

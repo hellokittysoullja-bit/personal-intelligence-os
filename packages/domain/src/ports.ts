@@ -58,6 +58,7 @@ export interface BrowserProfileRepository {
 export interface BrowserSessionRepository {
   create(session: BrowserSession): Promise<void>;
   getById(sessionId: string): Promise<BrowserSession | null>;
+  listByOwner(ownerId: string): Promise<BrowserSession[]>;
   update(session: BrowserSession, expectedVersion: number): Promise<boolean>;
 }
 

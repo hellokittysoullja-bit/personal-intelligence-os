@@ -19,6 +19,13 @@ export { createReconcileDurableJobs } from "./reconcile-durable-jobs";
 export { createDecideApproval } from "./approval";
 export { createCreateBrowserProfile, createDisableBrowserProfile } from "./browser-profile";
 export {
+  createCloseBrowserSession,
+  createRecordBrowserObservation,
+  createRequestBrowserHumanTakeover,
+  createReturnBrowserControlToAgent,
+  createStartBrowserSession,
+} from "./browser-session";
+export {
   createActivateMemory,
   createApproveMemory,
   createCreateMemoryCandidate,
@@ -36,6 +43,15 @@ export type {
   DisableBrowserProfile,
   DisableBrowserProfileInput,
 } from "./browser-profile";
+export type {
+  BrowserSessionTransitionInput,
+  CloseBrowserSession,
+  RecordBrowserObservation,
+  RequestBrowserHumanTakeover,
+  ReturnBrowserControlToAgent,
+  StartBrowserSession,
+  StartBrowserSessionInput,
+} from "./browser-session";
 export type {
   ActivateMemory,
   ApproveMemory,

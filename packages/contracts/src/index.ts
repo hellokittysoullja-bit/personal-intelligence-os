@@ -81,6 +81,19 @@ export type {
 } from "./memory";
 
 export {
+  browserSessionDtoSchema,
+  browserSessionResponseSchema,
+  browserSessionTransitionRequestSchema,
+  listBrowserSessionsResponseSchema,
+} from "./browser-session";
+export type {
+  BrowserSessionDto,
+  BrowserSessionResponse,
+  BrowserSessionTransitionRequest,
+  ListBrowserSessionsResponse,
+} from "./browser-session";
+
+export {
   browserProfileDtoSchema,
   browserProfileResponseSchema,
   createBrowserProfileRequestSchema,
