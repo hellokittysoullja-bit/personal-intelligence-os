@@ -32,6 +32,21 @@ export {
 export type { Task, TaskStatus } from "./task";
 export { evidenceSchema } from "./evidence";
 export type { Evidence } from "./evidence";
+export {
+  memoryProvenanceSchema,
+  memoryRecordSchema,
+  memoryScopeSchema,
+  memoryStatusSchema,
+  memoryTypeSchema,
+  transitionMemoryStatus,
+} from "./memory";
+export type {
+  MemoryProvenance,
+  MemoryRecord,
+  MemoryScope,
+  MemoryStatus,
+  MemoryType,
+} from "./memory";
 export { researchReportClaimSchema, researchReportContentSchema, researchReportSchema } from "./research-report";
 export type { ResearchReport, ResearchReportContent } from "./research-report";
 export {
@@ -63,6 +78,11 @@ export {
   createMissionContractUpdatedEvent,
   createMissionCreatedEvent,
   createMissionResearchPlannedEvent,
+  createMemoryActivatedEvent,
+  createMemoryApprovedEvent,
+  createMemoryCandidateCreatedEvent,
+  createMemoryForgottenEvent,
+  createMemorySupersededEvent,
   createResearchEvidenceCapturedEvent,
   createResearchReportDraftedEvent,
   createResearchReportVerifiedEvent,
@@ -72,6 +92,7 @@ export type {
   DomainEvent,
   MissionContractPayload,
   MissionCreatedPayload,
+  MemoryLifecyclePayload,
   MissionResearchPlannedPayload,
   ResearchEvidenceCapturedPayload,
   ResearchReportDraftedPayload,
@@ -82,6 +103,7 @@ export type {
   EventStore,
   GoalRepository,
   MissionRepository,
+  MemoryRepository,
   ResearchReportRepository,
   ResearchReportVerificationRepository,
   TaskRepository,

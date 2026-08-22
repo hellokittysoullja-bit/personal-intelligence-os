@@ -4,6 +4,7 @@ import { createEvidenceRepository } from "./evidence-repository";
 import { createEventStore } from "./event-repository";
 import { createGoalRepository } from "./goal-repository";
 import { createMissionRepository } from "./mission-repository";
+import { createMemoryRepository } from "./memory-repository";
 import { createResearchReportRepository } from "./research-report-repository";
 import { createResearchReportVerificationRepository } from "./research-report-verification-repository";
 import { createTaskRepository } from "./task-repository";
@@ -18,6 +19,7 @@ export function createUnitOfWork(db: Database): UnitOfWork {
           missions: createMissionRepository(tx),
           tasks: createTaskRepository(tx),
           evidence: createEvidenceRepository(tx),
+          memories: createMemoryRepository(tx),
           reports: createResearchReportRepository(tx),
           reportVerifications: createResearchReportVerificationRepository(tx),
           events: createEventStore(tx),

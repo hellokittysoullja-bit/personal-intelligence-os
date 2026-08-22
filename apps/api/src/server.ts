@@ -7,6 +7,10 @@ import type {
   CaptureOwnerEvidence,
   CapturePublicEvidence,
   ConfirmMissionContract,
+  CreateMemoryCandidate,
+  ApproveMemory,
+  ActivateMemory,
+  ForgetMemory,
   GenerateResearchReport,
   CreateMission,
   PlanResearchMission,
@@ -17,6 +21,7 @@ import {
   captureOwnerEvidenceRequestSchema,
   capturePublicEvidenceRequestSchema,
   captureOwnerEvidenceResponseSchema,
+  createMemoryCandidateRequestSchema,
   confirmMissionContractRequestSchema,
   createMissionRequestSchema,
   createMissionResponseSchema,
@@ -29,8 +34,11 @@ import {
   listEventsResponseSchema,
   listEvidenceResponseSchema,
   listMissionsResponseSchema,
+  listMemoriesResponseSchema,
   listResearchReportsResponseSchema,
   listTasksResponseSchema,
+  memoryResponseSchema,
+  memoryTransitionRequestSchema,
   planResearchMissionRequestSchema,
   updateMissionContractRequestSchema,
   verifyResearchReportRequestSchema,
@@ -47,6 +55,7 @@ import {
   type EvidenceRepository,
   type EventStore,
   type MissionRepository,
+  type MemoryRepository,
   type ResearchReportRepository,
   type ResearchReportVerificationRepository,
   type TaskRepository,
@@ -77,6 +86,10 @@ export interface BuildServerOptions {
   webOrigin: string;
   authToken?: string;
   createMission: CreateMission;
+  createMemoryCandidate: CreateMemoryCandidate;
+  approveMemory: ApproveMemory;
+  activateMemory: ActivateMemory;
+  forgetMemory: ForgetMemory;
   captureOwnerEvidence: CaptureOwnerEvidence;
   capturePublicEvidence: CapturePublicEvidence;
   updateMissionContract: UpdateMissionContract;
@@ -85,6 +98,7 @@ export interface BuildServerOptions {
   generateResearchReport?: GenerateResearchReport;
   verifyResearchReport?: VerifyResearchReport;
   missionRepository: MissionRepository;
+  memoryRepository: MemoryRepository;
   taskRepository: TaskRepository;
   evidenceRepository: EvidenceRepository;
   researchReportRepository: ResearchReportRepository;
@@ -110,6 +124,10 @@ export function buildServer({
   webOrigin,
   authToken,
   createMission,
+  createMemoryCandidate,
+  approveMemory,
+  activateMemory,
+  forgetMemory,
   captureOwnerEvidence,
   capturePublicEvidence,
   updateMissionContract,
@@ -118,6 +136,7 @@ export function buildServer({
   generateResearchReport,
   verifyResearchReport,
   missionRepository,
+  memoryRepository,
   taskRepository,
   evidenceRepository,
   researchReportRepository,
@@ -182,11 +201,65 @@ export function buildServer({
 
   function sendDomainError(error: unknown, reply: { code(statusCode: number): unknown }) {
     if (!(error instanceof DomainError)) return null;
-    const status = error.code === "MISSION_NOT_FOUND" ? 404 :
-      error.code === "MISSION_CONTRACT_INCOMPLETE" ? 422 : 409;
+    const status = error.code.endsWith("_NOT_FOUND") ? 404 :
+      error.code === "MISSION_CONTRACT_INCOMPLETE" || error.code === "RESEARCH_EVIDENCE_REQUIRED" || error.code === "MODEL_OUTPUT_INVALID" ? 422 : 409;
     reply.code(status);
     return { error: error.code.toLowerCase() };
   }
+
+  app.post("/memories", async (request, reply) => {
+    const body = createMemoryCandidateRequestSchema.safeParse(request.body);
+    if (!body.success) {
+      reply.code(400);
+      return { error: "invalid_request", details: body.error.flatten() };
+    }
+    try {
+      const { memory } = await createMemoryCandidate({ ...body.data, ownerId });
+      reply.code(201);
+      return memoryResponseSchema.parse({ memory });
+    } catch (error) {
+      const domainError = sendDomainError(error, reply);
+      if (domainError) return domainError;
+      throw error;
+    }
+  });
+
+  app.get("/memories", async (request, reply) => {
+    const query = z.object({ includeForgotten: z.enum(["true", "false"]).optional() }).safeParse(request.query);
+    if (!query.success) {
+      reply.code(400);
+      return { error: "invalid_query", details: query.error.flatten() };
+    }
+    const memories = await memoryRepository.listByOwner(ownerId, {
+      includeForgotten: query.data.includeForgotten === "true",
+    });
+    return listMemoriesResponseSchema.parse({ memories });
+  });
+
+  function memoryTransitionRoute(
+    execute: (input: { memoryId: string; ownerId: string; expectedVersion: number }) => Promise<{ memory: unknown }>,
+  ) {
+    return async (request: { params: unknown; body: unknown }, reply: { code(statusCode: number): unknown }) => {
+      const params = missionParamsSchema.safeParse(request.params);
+      const body = memoryTransitionRequestSchema.safeParse(request.body);
+      if (!params.success || !body.success) {
+        reply.code(400);
+        return { error: "invalid_request" };
+      }
+      try {
+        const { memory } = await execute({ memoryId: params.data.id, ownerId, expectedVersion: body.data.expectedVersion });
+        return memoryResponseSchema.parse({ memory });
+      } catch (error) {
+        const domainError = sendDomainError(error, reply);
+        if (domainError) return domainError;
+        throw error;
+      }
+    };
+  }
+
+  app.post("/memories/:id/approve", memoryTransitionRoute(approveMemory));
+  app.post("/memories/:id/activate", memoryTransitionRoute(activateMemory));
+  app.post("/memories/:id/forget", memoryTransitionRoute(forgetMemory));
 
   app.put("/missions/:id/contract", async (request, reply) => {
     const params = missionParamsSchema.safeParse(request.params);

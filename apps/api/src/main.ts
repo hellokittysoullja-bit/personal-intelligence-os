@@ -4,6 +4,10 @@ import {
   createCapturePublicEvidence,
   createConfirmMissionContract,
   createCreateMission,
+  createCreateMemoryCandidate,
+  createApproveMemory,
+  createActivateMemory,
+  createForgetMemory,
   createPlanResearchMission,
   createGenerateResearchReport,
   createVerifyResearchReport,
@@ -15,6 +19,7 @@ import {
   createEventStore,
   createEvidenceRepository,
   createMissionRepository,
+  createMemoryRepository,
   createResearchReportRepository,
   createResearchReportVerificationRepository,
   createTaskRepository,
@@ -42,12 +47,17 @@ async function main(): Promise<void> {
 
   const unitOfWork = createUnitOfWork(db.db);
   const missionRepository = createMissionRepository(db.db);
+  const memoryRepository = createMemoryRepository(db.db);
   const taskRepository = createTaskRepository(db.db);
   const eventStore = createEventStore(db.db);
   const evidenceRepository = createEvidenceRepository(db.db);
   const researchReportRepository = createResearchReportRepository(db.db);
   const researchReportVerificationRepository = createResearchReportVerificationRepository(db.db);
   const createMission = createCreateMission(unitOfWork);
+  const createMemoryCandidate = createCreateMemoryCandidate(unitOfWork);
+  const approveMemory = createApproveMemory(unitOfWork);
+  const activateMemory = createActivateMemory(unitOfWork);
+  const forgetMemory = createForgetMemory(unitOfWork);
   const captureOwnerEvidence = createCaptureOwnerEvidence(unitOfWork);
   const capturePublicEvidence = createCapturePublicEvidence(unitOfWork);
   const updateMissionContract = createUpdateMissionContract(unitOfWork);
@@ -88,6 +98,10 @@ async function main(): Promise<void> {
     webOrigin: env.WEB_ORIGIN,
     authToken: env.API_AUTH_TOKEN,
     createMission,
+    createMemoryCandidate,
+    approveMemory,
+    activateMemory,
+    forgetMemory,
     captureOwnerEvidence,
     capturePublicEvidence,
     updateMissionContract,
@@ -96,6 +110,7 @@ async function main(): Promise<void> {
     generateResearchReport,
     verifyResearchReport,
     missionRepository,
+    memoryRepository,
     taskRepository,
     evidenceRepository,
     researchReportRepository,

@@ -63,6 +63,23 @@ export type {
   VerifyResearchReportResponse,
 } from "./research-report-verification";
 
+export {
+  createMemoryCandidateRequestSchema,
+  listMemoriesResponseSchema,
+  memoryDtoSchema,
+  memoryResponseSchema,
+  memoryTransitionRequestSchema,
+} from "./memory";
+export type {
+  CreateMemoryCandidateRequest,
+  ListMemoriesResponse,
+  MemoryDto,
+  MemoryResponse,
+  MemoryScope,
+  MemoryTransitionRequest,
+  MemoryType,
+} from "./memory";
+
 export { eventDtoSchema, listEventsResponseSchema } from "./event";
 export type { EventDto, ListEventsResponse } from "./event";
 

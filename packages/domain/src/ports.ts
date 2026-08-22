@@ -2,6 +2,7 @@ import type { Evidence } from "./evidence";
 import type { DomainEvent } from "./event";
 import type { Goal } from "./goal";
 import type { Mission } from "./mission";
+import type { MemoryRecord, MemoryScope } from "./memory";
 import type { ResearchReport } from "./research-report";
 import type { ResearchReportVerification } from "./research-report-verification";
 import type { Task } from "./task";
@@ -37,6 +38,14 @@ export interface EvidenceRepository {
   listByMission(missionId: string): Promise<Evidence[]>;
 }
 
+export interface MemoryRepository {
+  create(memory: MemoryRecord): Promise<void>;
+  getById(memoryId: string): Promise<MemoryRecord | null>;
+  update(memory: MemoryRecord, expectedVersion: number): Promise<boolean>;
+  listByOwner(ownerId: string, options?: { includeForgotten?: boolean }): Promise<MemoryRecord[]>;
+  listActiveByScopeAndSubject(ownerId: string, scope: MemoryScope, subject: string): Promise<MemoryRecord[]>;
+}
+
 export interface ResearchReportRepository {
   create(report: ResearchReport): Promise<void>;
   getById(reportId: string): Promise<ResearchReport | null>;
@@ -66,6 +75,7 @@ export interface UnitOfWorkContext {
   missions: MissionRepository;
   tasks: TaskRepository;
   evidence: EvidenceRepository;
+  memories: MemoryRepository;
   reports: ResearchReportRepository;
   reportVerifications: ResearchReportVerificationRepository;
   events: EventStore;

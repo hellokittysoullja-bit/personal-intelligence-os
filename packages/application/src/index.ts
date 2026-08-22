@@ -15,9 +15,23 @@ export { createCaptureOwnerEvidence } from "./capture-owner-evidence";
 export { createCapturePublicEvidence } from "./capture-public-evidence";
 export { createGenerateResearchReport } from "./generate-research-report";
 export { createVerifyResearchReport } from "./verify-research-report";
+export {
+  createActivateMemory,
+  createApproveMemory,
+  createCreateMemoryCandidate,
+  createForgetMemory,
+} from "./memory";
 export type { CaptureOwnerEvidence, CaptureOwnerEvidenceInput } from "./capture-owner-evidence";
 export type { CapturePublicEvidence, CapturePublicEvidenceInput } from "./capture-public-evidence";
 export type { GenerateResearchReport, GenerateResearchReportInput } from "./generate-research-report";
 export type { VerifyResearchReport, VerifyResearchReportInput } from "./verify-research-report";
+export type {
+  ActivateMemory,
+  ApproveMemory,
+  CreateMemoryCandidate,
+  CreateMemoryCandidateInput,
+  ForgetMemory,
+  MemoryTransitionInput,
+} from "./memory";
 export { createPlanResearchMission } from "./plan-research-mission";
 export type { PlanResearchMission, PlanResearchMissionInput } from "./plan-research-mission";

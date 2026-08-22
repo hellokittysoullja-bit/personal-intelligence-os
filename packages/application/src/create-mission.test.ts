@@ -8,6 +8,8 @@ import type {
   GoalRepository,
   Mission,
   MissionRepository,
+  MemoryRecord,
+  MemoryRepository,
   ModelCompletion,
   ModelRequest,
   ModelRouter,
@@ -30,12 +32,19 @@ import { createCapturePublicEvidence } from "./capture-public-evidence";
 import { createCaptureOwnerEvidence } from "./capture-owner-evidence";
 import { createGenerateResearchReport } from "./generate-research-report";
 import { createVerifyResearchReport } from "./verify-research-report";
+import {
+  createActivateMemory,
+  createApproveMemory,
+  createCreateMemoryCandidate,
+  createForgetMemory,
+} from "./memory";
 
 function createFakeUnitOfWork() {
   const goals: Goal[] = [];
   const missions: Mission[] = [];
   const tasks: Task[] = [];
   const evidence: Evidence[] = [];
+  const memories: MemoryRecord[] = [];
   const reports: ResearchReport[] = [];
   const reportVerifications: ResearchReportVerification[] = [];
   const events: DomainEvent[] = [];
@@ -85,6 +94,27 @@ function createFakeUnitOfWork() {
     },
   };
 
+  const memoryRepository: MemoryRepository = {
+    async create(memory) {
+      memories.push(memory);
+    },
+    async getById(memoryId) {
+      return memories.find((memory) => memory.id === memoryId) ?? null;
+    },
+    async update(memory, expectedVersion) {
+      const index = memories.findIndex((stored) => stored.id === memory.id);
+      if (index < 0 || memories[index]?.version !== expectedVersion) return false;
+      memories[index] = memory;
+      return true;
+    },
+    async listByOwner(ownerId, options) {
+      return memories.filter((memory) => memory.ownerId === ownerId && (options?.includeForgotten || memory.status !== "forgotten"));
+    },
+    async listActiveByScopeAndSubject(ownerId, scope, subject) {
+      return memories.filter((memory) => memory.ownerId === ownerId && memory.scope === scope && memory.subject === subject && memory.status === "active");
+    },
+  };
+
   const reportRepository: ResearchReportRepository = {
     async create(report) {
       reports.push(report);
@@ -120,11 +150,11 @@ function createFakeUnitOfWork() {
 
   const unitOfWork: UnitOfWork = {
     async run(fn) {
-      return fn({ goals: goalRepository, missions: missionRepository, tasks: taskRepository, evidence: evidenceRepository, reports: reportRepository, reportVerifications: reportVerificationRepository, events: eventStore });
+      return fn({ goals: goalRepository, missions: missionRepository, tasks: taskRepository, evidence: evidenceRepository, memories: memoryRepository, reports: reportRepository, reportVerifications: reportVerificationRepository, events: eventStore });
     },
   };
 
-  return { unitOfWork, goals, missions, tasks, evidence, reports, reportVerifications, events };
+  return { unitOfWork, goals, missions, tasks, evidence, memories, reports, reportVerifications, events };
 }
 
 class QueueModelRouter implements ModelRouter {
@@ -456,5 +486,69 @@ describe("VerifyResearchReport", () => {
     expect(result.verification.verdict).toBe("passed");
     expect(result.verification.model.repairAttempted).toBe(true);
     expect(verifier.requests).toHaveLength(2);
+  });
+});
+
+
+describe("MemoryLifecycle", () => {
+  it("требует owner-review и создаёт revision chain вместо двух active фактов", async () => {
+    const { unitOfWork, memories, events } = createFakeUnitOfWork();
+    const createCandidate = createCreateMemoryCandidate(unitOfWork);
+    const approve = createApproveMemory(unitOfWork);
+    const activate = createActivateMemory(unitOfWork);
+
+    const first = await createCandidate({
+      ownerId: "owner-1", memoryType: "owner_preference", scope: "owner", subject: "language",
+      content: "Предпочитает русский язык.", confidence: 0.9,
+    });
+    expect(first.memory.status).toBe("candidate");
+    const firstApproved = await approve({ memoryId: first.memory.id, ownerId: "owner-1", expectedVersion: first.memory.version });
+    const firstActive = await activate({ memoryId: first.memory.id, ownerId: "owner-1", expectedVersion: firstApproved.memory.version });
+    expect(firstActive.memory.status).toBe("active");
+
+    const second = await createCandidate({
+      ownerId: "owner-1", memoryType: "owner_preference", scope: "owner", subject: "language",
+      content: "Предпочитает русский язык и краткие ответы.", confidence: 0.95,
+    });
+    const secondApproved = await approve({ memoryId: second.memory.id, ownerId: "owner-1", expectedVersion: second.memory.version });
+    const secondActive = await activate({ memoryId: second.memory.id, ownerId: "owner-1", expectedVersion: secondApproved.memory.version });
+
+    expect(secondActive.memory.supersedesId).toBe(first.memory.id);
+    expect(memories.find((memory) => memory.id === first.memory.id)?.status).toBe("superseded");
+    expect(memories.filter((memory) => memory.status === "active")).toHaveLength(1);
+    expect(events.map((event) => event.eventType).slice(-5)).toEqual([
+      "MemoryActivated", "MemoryCandidateCreated", "MemoryApproved", "MemorySuperseded", "MemoryActivated",
+    ]);
+  });
+
+  it("исключает forgotten запись из штатной памяти, сохраняя только metadata в audit event", async () => {
+    const { unitOfWork, memories, events } = createFakeUnitOfWork();
+    const candidate = await createCreateMemoryCandidate(unitOfWork)({
+      ownerId: "owner-1", memoryType: "temporary_context", scope: "mission", subject: "private-note",
+      content: "Содержимое, которое владелец потом забудет.", confidence: 0.5,
+    });
+    const approved = await createApproveMemory(unitOfWork)({
+      memoryId: candidate.memory.id, ownerId: "owner-1", expectedVersion: candidate.memory.version,
+    });
+    const forgotten = await createForgetMemory(unitOfWork)({
+      memoryId: candidate.memory.id, ownerId: "owner-1", expectedVersion: approved.memory.version,
+    });
+
+    expect(forgotten.memory.status).toBe("forgotten");
+    expect(memories.filter((memory) => memory.status !== "forgotten")).toHaveLength(0);
+    expect(events.at(-1)?.eventType).toBe("MemoryForgotten");
+    expect(events.at(-1)?.payload).not.toHaveProperty("content");
+  });
+
+  it("не позволяет activate candidate до явного approval", async () => {
+    const { unitOfWork } = createFakeUnitOfWork();
+    const candidate = await createCreateMemoryCandidate(unitOfWork)({
+      ownerId: "owner-1", memoryType: "project_fact", scope: "project", subject: "status",
+      content: "Проект в разработке.", confidence: 0.7,
+    });
+
+    await expect(createActivateMemory(unitOfWork)({
+      memoryId: candidate.memory.id, ownerId: "owner-1", expectedVersion: candidate.memory.version,
+    })).rejects.toMatchObject({ code: "MEMORY_INVALID_STATUS" });
   });
 });

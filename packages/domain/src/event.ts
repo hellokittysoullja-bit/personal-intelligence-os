@@ -272,3 +272,61 @@ export function createResearchReportVerifiedEvent(params: {
     schemaVersion: 1,
   };
 }
+
+
+export interface MemoryLifecyclePayload {
+  memoryId: string;
+  memoryType: string;
+  scope: string;
+  subject: string;
+  status: string;
+  supersedesId: string | null;
+}
+
+function createMemoryLifecycleEvent(
+  eventType: "MemoryCandidateCreated" | "MemoryApproved" | "MemoryActivated" | "MemorySuperseded" | "MemoryForgotten",
+  memory: { id: string; ownerId: string; memoryType: string; scope: string; subject: string; status: string; supersedesId: string | null },
+  traceId?: string,
+): DomainEvent {
+  return {
+    eventId: randomUUID(),
+    eventType,
+    timestamp: new Date().toISOString(),
+    ownerId: memory.ownerId,
+    missionId: null,
+    taskId: null,
+    agentJobId: null,
+    traceId: traceId ?? randomUUID(),
+    causationId: null,
+    correlationId: memory.id,
+    payload: {
+      memoryId: memory.id,
+      memoryType: memory.memoryType,
+      scope: memory.scope,
+      subject: memory.subject,
+      status: memory.status,
+      supersedesId: memory.supersedesId,
+    } satisfies MemoryLifecyclePayload,
+    schemaVersion: 1,
+  };
+}
+
+export function createMemoryCandidateCreatedEvent(memory: Parameters<typeof createMemoryLifecycleEvent>[1], traceId?: string): DomainEvent {
+  return createMemoryLifecycleEvent("MemoryCandidateCreated", memory, traceId);
+}
+
+export function createMemoryApprovedEvent(memory: Parameters<typeof createMemoryLifecycleEvent>[1], traceId?: string): DomainEvent {
+  return createMemoryLifecycleEvent("MemoryApproved", memory, traceId);
+}
+
+export function createMemoryActivatedEvent(memory: Parameters<typeof createMemoryLifecycleEvent>[1], traceId?: string): DomainEvent {
+  return createMemoryLifecycleEvent("MemoryActivated", memory, traceId);
+}
+
+export function createMemorySupersededEvent(memory: Parameters<typeof createMemoryLifecycleEvent>[1], traceId?: string): DomainEvent {
+  return createMemoryLifecycleEvent("MemorySuperseded", memory, traceId);
+}
+
+export function createMemoryForgottenEvent(memory: Parameters<typeof createMemoryLifecycleEvent>[1], traceId?: string): DomainEvent {
+  return createMemoryLifecycleEvent("MemoryForgotten", memory, traceId);
+}

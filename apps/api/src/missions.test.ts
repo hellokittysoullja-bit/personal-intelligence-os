@@ -4,6 +4,10 @@ import {
   createCapturePublicEvidence,
   createConfirmMissionContract,
   createCreateMission,
+  createCreateMemoryCandidate,
+  createApproveMemory,
+  createActivateMemory,
+  createForgetMemory,
   createPlanResearchMission,
   createUpdateMissionContract,
 } from "@pios/application";
@@ -13,6 +17,7 @@ import {
   createEventStore,
   createEvidenceRepository,
   createMissionRepository,
+  createMemoryRepository,
   createResearchReportRepository,
   createResearchReportVerificationRepository,
   createTaskRepository,
@@ -31,12 +36,17 @@ describe.skipIf(!process.env.DATABASE_URL)("apps/api mission routes (real Postgr
 
     const unitOfWork = createUnitOfWork(db.db);
     const missionRepository = createMissionRepository(db.db);
+    const memoryRepository = createMemoryRepository(db.db);
     const taskRepository = createTaskRepository(db.db);
     const eventStore = createEventStore(db.db);
     const evidenceRepository = createEvidenceRepository(db.db);
     const researchReportRepository = createResearchReportRepository(db.db);
     const researchReportVerificationRepository = createResearchReportVerificationRepository(db.db);
     const createMission = createCreateMission(unitOfWork);
+    const createMemoryCandidate = createCreateMemoryCandidate(unitOfWork);
+    const approveMemory = createApproveMemory(unitOfWork);
+    const activateMemory = createActivateMemory(unitOfWork);
+    const forgetMemory = createForgetMemory(unitOfWork);
     const captureOwnerEvidence = createCaptureOwnerEvidence(unitOfWork);
     const capturePublicEvidence = createCapturePublicEvidence(unitOfWork);
     const updateMissionContract = createUpdateMissionContract(unitOfWork);
@@ -49,12 +59,17 @@ describe.skipIf(!process.env.DATABASE_URL)("apps/api mission routes (real Postgr
       ownerId: `test-owner-${Date.now()}`,
       webOrigin: "http://localhost:3000",
       createMission,
+      createMemoryCandidate,
+      approveMemory,
+      activateMemory,
+      forgetMemory,
       captureOwnerEvidence,
       capturePublicEvidence,
       updateMissionContract,
       confirmMissionContract,
       planResearchMission,
       missionRepository,
+      memoryRepository,
       taskRepository,
       evidenceRepository,
       researchReportRepository,
@@ -72,6 +87,42 @@ describe.skipIf(!process.env.DATABASE_URL)("apps/api mission routes (real Postgr
       },
     };
   }
+
+  it("создаёт и управляет owner memory только через явные lifecycle steps", async () => {
+    const { app, teardown } = await setup();
+    try {
+      const created = await app.inject({
+        method: "POST", url: "/memories", payload: {
+          memoryType: "owner_preference", scope: "owner", subject: "language",
+          content: "Предпочитает русский язык.", confidence: 0.9,
+        },
+      });
+      expect(created.statusCode).toBe(201);
+      const candidate = created.json().memory;
+      expect(candidate.status).toBe("candidate");
+
+      const approved = await app.inject({
+        method: "POST", url: `/memories/${candidate.id}/approve`, payload: { expectedVersion: candidate.version },
+      });
+      expect(approved.statusCode).toBe(200);
+      const active = await app.inject({
+        method: "POST", url: `/memories/${candidate.id}/activate`, payload: { expectedVersion: approved.json().memory.version },
+      });
+      expect(active.statusCode).toBe(200);
+      expect(active.json().memory.status).toBe("active");
+
+      const forgotten = await app.inject({
+        method: "POST", url: `/memories/${candidate.id}/forget`, payload: { expectedVersion: active.json().memory.version },
+      });
+      expect(forgotten.statusCode).toBe(200);
+      const listed = await app.inject({ method: "GET", url: "/memories" });
+      expect(listed.json().memories).toEqual([]);
+      const includingForgotten = await app.inject({ method: "GET", url: "/memories?includeForgotten=true" });
+      expect(includingForgotten.json().memories).toHaveLength(1);
+    } finally {
+      await teardown();
+    }
+  });
 
   it("POST /missions/:id/reports/:reportId/verify безопасно недоступен без strict verifier config", async () => {
     const { app, teardown } = await setup();

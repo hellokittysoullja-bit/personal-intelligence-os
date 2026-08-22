@@ -14,6 +14,11 @@ import type {
   EvidenceDto,
   ListTasksResponse,
   MissionDto,
+  CreateMemoryCandidateRequest,
+  ListMemoriesResponse,
+  MemoryDto,
+  MemoryResponse,
+  MemoryTransitionRequest,
   PlanResearchMissionRequest,
   ResearchReportDto,
   ListResearchReportVerificationsResponse,
@@ -34,6 +39,41 @@ async function parseJsonOrThrow<T>(response: Response): Promise<T> {
   }
   return (await response.json()) as T;
 }
+
+export async function listMemories(includeForgotten = false): Promise<MemoryDto[]> {
+  const suffix = includeForgotten ? "?includeForgotten=true" : "";
+  const response = await fetch(`${getApiUrl()}/memories${suffix}`, { cache: "no-store" });
+  const data = await parseJsonOrThrow<ListMemoriesResponse>(response);
+  return data.memories;
+}
+
+export async function createMemoryCandidate(input: CreateMemoryCandidateRequest): Promise<MemoryDto> {
+  const response = await fetch(`${getApiUrl()}/memories`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  const data = await parseJsonOrThrow<MemoryResponse>(response);
+  return data.memory;
+}
+
+async function transitionMemory(
+  memoryId: string,
+  action: "approve" | "activate" | "forget",
+  request: MemoryTransitionRequest,
+): Promise<MemoryDto> {
+  const response = await fetch(`${getApiUrl()}/memories/${memoryId}/${action}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(request),
+  });
+  const data = await parseJsonOrThrow<MemoryResponse>(response);
+  return data.memory;
+}
+
+export const approveMemory = (memoryId: string, request: MemoryTransitionRequest) => transitionMemory(memoryId, "approve", request);
+export const activateMemory = (memoryId: string, request: MemoryTransitionRequest) => transitionMemory(memoryId, "activate", request);
+export const forgetMemory = (memoryId: string, request: MemoryTransitionRequest) => transitionMemory(memoryId, "forget", request);
 
 export async function listMissions(): Promise<MissionDto[]> {
   const response = await fetch(`${getApiUrl()}/missions`, { cache: "no-store" });

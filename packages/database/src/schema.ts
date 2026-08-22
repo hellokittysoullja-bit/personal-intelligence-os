@@ -1,5 +1,6 @@
-import type { Evidence, MissionBudget, ResearchReport, ResearchReportVerification } from "@pios/domain";
-import { index, integer, jsonb, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
+import type { Evidence, MemoryRecord, MissionBudget, ResearchReport, ResearchReportVerification } from "@pios/domain";
+import { sql } from "drizzle-orm";
+import { index, integer, jsonb, pgTable, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
 
 /** docs/DOMAIN_MODEL.md §1 */
 export const goals = pgTable("goals", {
@@ -92,6 +93,39 @@ export const evidence = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [index("evidence_mission_id_created_at_idx").on(table.missionId, table.createdAt)],
+);
+
+/**
+ * Версионируемая owner memory. Содержимое не дублируется в mission_events,
+ * поэтому forget исключает его из штатных retrieval-интерфейсов.
+ */
+export const memoryRecords = pgTable(
+  "memory_records",
+  {
+    id: uuid("id").primaryKey(),
+    ownerId: text("owner_id").notNull(),
+    memoryType: text("memory_type").notNull(),
+    scope: text("scope").notNull(),
+    subject: text("subject").notNull(),
+    content: text("content").notNull(),
+    structuredData: jsonb("structured_data").notNull().$type<MemoryRecord["structuredData"]>(),
+    provenance: jsonb("provenance").notNull().$type<MemoryRecord["provenance"]>(),
+    confidence: integer("confidence_basis_points").notNull(),
+    validFrom: timestamp("valid_from", { withTimezone: true }),
+    validUntil: timestamp("valid_until", { withTimezone: true }),
+    status: text("status").notNull(),
+    supersedesId: uuid("supersedes_id"),
+    version: integer("version").notNull().default(1),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [
+    index("memory_records_owner_status_updated_at_idx").on(table.ownerId, table.status, table.updatedAt),
+    index("memory_records_owner_scope_subject_idx").on(table.ownerId, table.scope, table.subject),
+    uniqueIndex("memory_records_one_active_subject_idx")
+      .on(table.ownerId, table.scope, table.subject)
+      .where(sql`${table.status} = 'active'`),
+  ],
 );
 
 /** Версионируемые черновики отчётов, где все citation IDs указывают на evidence. */
