@@ -1,3 +1,4 @@
+import type { Evidence } from "./evidence";
 import type { DomainEvent } from "./event";
 import type { Goal } from "./goal";
 import type { Mission } from "./mission";
@@ -25,7 +26,13 @@ export interface MissionRepository {
 }
 
 export interface TaskRepository {
+  create(task: Task): Promise<void>;
   listByMission(missionId: string): Promise<Task[]>;
+}
+
+export interface EvidenceRepository {
+  create(evidence: Evidence): Promise<void>;
+  listByMission(missionId: string): Promise<Evidence[]>;
 }
 
 export interface EventStore {
@@ -44,6 +51,8 @@ export interface EventStore {
 export interface UnitOfWorkContext {
   goals: GoalRepository;
   missions: MissionRepository;
+  tasks: TaskRepository;
+  evidence: EvidenceRepository;
   events: EventStore;
 }
 

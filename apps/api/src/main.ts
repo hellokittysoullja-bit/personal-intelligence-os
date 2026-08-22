@@ -2,6 +2,7 @@ import path from "node:path";
 import {
   createConfirmMissionContract,
   createCreateMission,
+  createPlanResearchMission,
   createUpdateMissionContract,
 } from "@pios/application";
 import {
@@ -38,6 +39,7 @@ async function main(): Promise<void> {
   const createMission = createCreateMission(unitOfWork);
   const updateMissionContract = createUpdateMissionContract(unitOfWork);
   const confirmMissionContract = createConfirmMissionContract(unitOfWork);
+  const planResearchMission = createPlanResearchMission(unitOfWork);
 
   const app = buildServer({
     logger,
@@ -48,6 +50,7 @@ async function main(): Promise<void> {
     createMission,
     updateMissionContract,
     confirmMissionContract,
+    planResearchMission,
     missionRepository,
     taskRepository,
     eventStore,

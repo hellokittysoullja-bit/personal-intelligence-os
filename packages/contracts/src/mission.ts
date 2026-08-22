@@ -41,6 +41,11 @@ export const confirmMissionContractRequestSchema = z.object({
 });
 export type ConfirmMissionContractRequest = z.infer<typeof confirmMissionContractRequestSchema>;
 
+export const planResearchMissionRequestSchema = z.object({
+  expectedVersion: z.number().int().positive(),
+});
+export type PlanResearchMissionRequest = z.infer<typeof planResearchMissionRequestSchema>;
+
 export const createMissionResponseSchema = z.object({
   mission: missionDtoSchema,
 });

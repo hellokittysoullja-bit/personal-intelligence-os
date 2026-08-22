@@ -30,14 +30,23 @@ export {
   taskStatusSchema,
 } from "./task";
 export type { Task, TaskStatus } from "./task";
+export { evidenceSchema } from "./evidence";
+export type { Evidence } from "./evidence";
 export {
   createMissionContractConfirmedEvent,
   createMissionContractUpdatedEvent,
   createMissionCreatedEvent,
+  createMissionResearchPlannedEvent,
   domainEventSchema,
 } from "./event";
-export type { DomainEvent, MissionContractPayload, MissionCreatedPayload } from "./event";
 export type {
+  DomainEvent,
+  MissionContractPayload,
+  MissionCreatedPayload,
+  MissionResearchPlannedPayload,
+} from "./event";
+export type {
+  EvidenceRepository,
   EventStore,
   GoalRepository,
   MissionRepository,

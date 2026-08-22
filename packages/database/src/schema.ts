@@ -1,4 +1,4 @@
-import type { MissionBudget } from "@pios/domain";
+import type { Evidence, MissionBudget } from "@pios/domain";
 import { index, integer, jsonb, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
 
 /** docs/DOMAIN_MODEL.md §1 */
@@ -72,6 +72,27 @@ export const tasks = pgTable("tasks", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+/** Проверяемые фрагменты публичных read-only источников research mission. */
+export const evidence = pgTable(
+  "evidence",
+  {
+    id: uuid("id").primaryKey(),
+    ownerId: text("owner_id").notNull(),
+    missionId: uuid("mission_id")
+      .notNull()
+      .references(() => missions.id),
+    sourceUrl: text("source_url").notNull(),
+    title: text("title").notNull(),
+    excerpt: text("excerpt").notNull(),
+    retrievedAt: timestamp("retrieved_at", { withTimezone: true }).notNull(),
+    contentHash: text("content_hash").notNull(),
+    provenance: jsonb("provenance").notNull().$type<Evidence["provenance"]>(),
+    confidence: integer("confidence_basis_points").notNull(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index("evidence_mission_id_created_at_idx").on(table.missionId, table.createdAt)],
+);
 
 /**
  * docs/DOMAIN_MODEL.md §12, ADR-004 — append-only журнал аудита, основной

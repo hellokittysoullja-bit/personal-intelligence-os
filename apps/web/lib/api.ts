@@ -6,6 +6,7 @@ import type {
   ListMissionsResponse,
   ListTasksResponse,
   MissionDto,
+  PlanResearchMissionRequest,
   UpdateMissionContractRequest,
 } from "@pios/contracts";
 
@@ -55,6 +56,19 @@ export async function confirmMissionContract(
   request: ConfirmMissionContractRequest,
 ): Promise<MissionDto> {
   const response = await fetch(`${getApiUrl()}/missions/${missionId}/contract/confirm`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(request),
+  });
+  const data = await parseJsonOrThrow<CreateMissionResponse>(response);
+  return data.mission;
+}
+
+export async function planResearchMission(
+  missionId: string,
+  request: PlanResearchMissionRequest,
+): Promise<MissionDto> {
+  const response = await fetch(`${getApiUrl()}/missions/${missionId}/research/plan`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(request),

@@ -8,6 +8,7 @@ export {
   getMissionResponseSchema,
   listMissionsResponseSchema,
   missionDtoSchema,
+  planResearchMissionRequestSchema,
   updateMissionContractRequestSchema,
 } from "./mission";
 export type {
@@ -17,6 +18,7 @@ export type {
   GetMissionResponse,
   ListMissionsResponse,
   MissionDto,
+  PlanResearchMissionRequest,
   UpdateMissionContractRequest,
 } from "./mission";
 

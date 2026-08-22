@@ -10,3 +10,5 @@ export type {
   UpdateMissionContract,
   UpdateMissionContractInput,
 } from "./mission-contract";
+export { createPlanResearchMission } from "./plan-research-mission";
+export type { PlanResearchMission, PlanResearchMissionInput } from "./plan-research-mission";

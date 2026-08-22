@@ -117,3 +117,37 @@ export function createMissionCreatedEvent(params: {
     schemaVersion: 1,
   };
 }
+
+
+export interface MissionResearchPlannedPayload {
+  missionId: string;
+  version: number;
+  taskIds: string[];
+  mode: "read_only";
+}
+
+export function createMissionResearchPlannedEvent(
+  mission: Mission,
+  taskIds: string[],
+  traceId?: string,
+): DomainEvent {
+  return {
+    eventId: randomUUID(),
+    eventType: "MissionResearchPlanned",
+    timestamp: new Date().toISOString(),
+    ownerId: mission.ownerId,
+    missionId: mission.id,
+    taskId: null,
+    agentJobId: null,
+    traceId: traceId ?? randomUUID(),
+    causationId: null,
+    correlationId: mission.id,
+    payload: {
+      missionId: mission.id,
+      version: mission.version,
+      taskIds,
+      mode: "read_only",
+    } satisfies MissionResearchPlannedPayload,
+    schemaVersion: 1,
+  };
+}

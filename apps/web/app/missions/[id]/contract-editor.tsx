@@ -2,7 +2,7 @@
 
 import type { MissionDto } from "@pios/contracts";
 import { useEffect, useState, type FormEvent } from "react";
-import { confirmMissionContract, updateMissionContract } from "../../../lib/api";
+import { confirmMissionContract, planResearchMission, updateMissionContract } from "../../../lib/api";
 
 function lines(value: string): string[] {
   return value.split("\n").map((item) => item.trim()).filter(Boolean);
@@ -64,6 +64,21 @@ export function ContractEditor({ mission, onMissionChanged }: Props) {
     }
   }
 
+  async function planResearch() {
+    setSaving(true);
+    setError(null);
+    setNotice(null);
+    try {
+      const planned = await planResearchMission(mission.id, { expectedVersion: mission.version });
+      onMissionChanged(planned);
+      setNotice("Создан безопасный план исследования из трёх read-only задач. Внешние инструменты ещё не запускаются.");
+    } catch {
+      setError("Не удалось создать план исследования. Обновите страницу и проверьте статус миссии.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
   async function confirm() {
     setSaving(true);
     setError(null);
@@ -89,8 +104,15 @@ export function ContractEditor({ mission, onMissionChanged }: Props) {
       </p>
       {error && <p role="alert" style={{ color: "#9f1239" }}>{error}</p>}
       {notice && <p role="status" style={{ color: "#166534" }}>{notice}</p>}
-      {!editable ? (
-        <p>Контракт уже подтверждён и зафиксирован в журнале событий.</p>
+      {mission.status === "understanding" && mission.currentPhase === "understand" ? (
+        <div>
+          <p>Контракт подтверждён. Теперь можно создать только план исследования; сам сбор источников будет отдельным контролируемым шагом.</p>
+          <button type="button" onClick={() => void planResearch()} disabled={saving}>
+            {saving ? "Создаю план..." : "Создать read-only план исследования"}
+          </button>
+        </div>
+      ) : !editable ? (
+        <p>Контракт уже зафиксирован в журнале событий.</p>
       ) : (
         <form onSubmit={save}>
           <label htmlFor="contract-objective">Ожидаемый результат</label>

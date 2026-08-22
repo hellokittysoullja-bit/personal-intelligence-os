@@ -7,6 +7,7 @@ export * as schema from "./schema";
 export { createGoalRepository } from "./goal-repository";
 export { createMissionRepository } from "./mission-repository";
 export { createTaskRepository } from "./task-repository";
+export { createEvidenceRepository } from "./evidence-repository";
 export { createEventStore } from "./event-repository";
 export { createUnitOfWork } from "./unit-of-work";
 export { createEventBus } from "./event-bus";

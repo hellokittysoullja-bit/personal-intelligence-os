@@ -3,6 +3,7 @@ import cors from "@fastify/cors";
 import type {
   ConfirmMissionContract,
   CreateMission,
+  PlanResearchMission,
   UpdateMissionContract,
 } from "@pios/application";
 import {
@@ -15,6 +16,7 @@ import {
   listEventsResponseSchema,
   listMissionsResponseSchema,
   listTasksResponseSchema,
+  planResearchMissionRequestSchema,
   updateMissionContractRequestSchema,
 } from "@pios/contracts";
 import {
@@ -40,6 +42,7 @@ export interface BuildServerOptions {
   createMission: CreateMission;
   updateMissionContract: UpdateMissionContract;
   confirmMissionContract: ConfirmMissionContract;
+  planResearchMission: PlanResearchMission;
   missionRepository: MissionRepository;
   taskRepository: TaskRepository;
   eventStore: EventStore;
@@ -65,6 +68,7 @@ export function buildServer({
   createMission,
   updateMissionContract,
   confirmMissionContract,
+  planResearchMission,
   missionRepository,
   taskRepository,
   eventStore,
@@ -165,6 +169,26 @@ export function buildServer({
     }
     try {
       const { mission } = await confirmMissionContract({ ...body.data, missionId: params.data.id, ownerId });
+      return createMissionResponseSchema.parse({ mission });
+    } catch (error) {
+      const domainError = sendDomainError(error, reply);
+      if (domainError) return domainError;
+      throw error;
+    }
+  });
+
+  app.post("/missions/:id/research/plan", async (request, reply) => {
+    const params = missionParamsSchema.safeParse(request.params);
+    const body = planResearchMissionRequestSchema.safeParse(request.body);
+    if (!params.success || !body.success) {
+      reply.code(400);
+      return {
+        error: "invalid_request",
+        details: { params: params.success ? undefined : params.error.flatten(), body: body.success ? undefined : body.error.flatten() },
+      };
+    }
+    try {
+      const { mission } = await planResearchMission({ ...body.data, missionId: params.data.id, ownerId });
       return createMissionResponseSchema.parse({ mission });
     } catch (error) {
       const domainError = sendDomainError(error, reply);

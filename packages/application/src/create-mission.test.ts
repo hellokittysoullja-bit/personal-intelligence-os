@@ -1,10 +1,14 @@
 import type {
   DomainEvent,
+  Evidence,
+  EvidenceRepository,
   EventStore,
   Goal,
   GoalRepository,
   Mission,
   MissionRepository,
+  Task,
+  TaskRepository,
   UnitOfWork,
 } from "@pios/domain";
 import { describe, expect, it } from "vitest";
@@ -13,10 +17,13 @@ import {
   createConfirmMissionContract,
   createUpdateMissionContract,
 } from "./mission-contract";
+import { createPlanResearchMission } from "./plan-research-mission";
 
 function createFakeUnitOfWork() {
   const goals: Goal[] = [];
   const missions: Mission[] = [];
+  const tasks: Task[] = [];
+  const evidence: Evidence[] = [];
   const events: DomainEvent[] = [];
 
   const goalRepository: GoalRepository = {
@@ -46,6 +53,24 @@ function createFakeUnitOfWork() {
     },
   };
 
+  const taskRepository: TaskRepository = {
+    async create(task) {
+      tasks.push(task);
+    },
+    async listByMission(missionId) {
+      return tasks.filter((task) => task.missionId === missionId);
+    },
+  };
+
+  const evidenceRepository: EvidenceRepository = {
+    async create(item) {
+      evidence.push(item);
+    },
+    async listByMission(missionId) {
+      return evidence.filter((item) => item.missionId === missionId);
+    },
+  };
+
   const eventStore: EventStore = {
     async append(event) {
       events.push(event);
@@ -60,11 +85,11 @@ function createFakeUnitOfWork() {
 
   const unitOfWork: UnitOfWork = {
     async run(fn) {
-      return fn({ goals: goalRepository, missions: missionRepository, events: eventStore });
+      return fn({ goals: goalRepository, missions: missionRepository, tasks: taskRepository, evidence: evidenceRepository, events: eventStore });
     },
   };
 
-  return { unitOfWork, goals, missions, events };
+  return { unitOfWork, goals, missions, tasks, evidence, events };
 }
 
 describe("CreateMission", () => {
@@ -151,5 +176,49 @@ describe("MissionContract", () => {
       "MissionContractUpdated",
       "MissionContractConfirmed",
     ]);
+  });
+});
+
+
+describe("PlanResearchMission", () => {
+  it("создаёт read-only исследовательский план только после подтверждения контракта", async () => {
+    const { unitOfWork, tasks, events } = createFakeUnitOfWork();
+    const created = await createCreateMission(unitOfWork)({ ownerId: "owner-1", rawRequest: "Исследуй рынок" });
+    const updated = await createUpdateMissionContract(unitOfWork)({
+      missionId: created.mission.id,
+      ownerId: "owner-1",
+      expectedVersion: created.mission.version,
+      objective: "Исследовать рынок и подготовить отчёт",
+      autonomyLevel: "supervised",
+      riskLevel: "L1",
+      budget: created.mission.budget,
+      successCriteria: ["В отчёте есть проверенные источники"],
+      constraints: ["Только чтение публичных источников"],
+      unknowns: [],
+      assumptions: [],
+      stopConditions: [],
+    });
+    const confirmed = await createConfirmMissionContract(unitOfWork)({
+      missionId: updated.mission.id,
+      ownerId: "owner-1",
+      expectedVersion: updated.mission.version,
+    });
+
+    const result = await createPlanResearchMission(unitOfWork)({
+      missionId: confirmed.mission.id,
+      ownerId: "owner-1",
+      expectedVersion: confirmed.mission.version,
+    });
+
+    expect(result.mission.status).toBe("planning");
+    expect(result.mission.currentPhase).toBe("plan");
+    expect(tasks).toHaveLength(3);
+    expect(tasks.map((task) => task.title)).toEqual([
+      "Собрать источники",
+      "Собрать исследовательский отчёт",
+      "Проверить отчёт",
+    ]);
+    expect(tasks.every((task) => task.taskType === "research")).toBe(true);
+    expect(events.at(-1)?.eventType).toBe("MissionResearchPlanned");
   });
 });
