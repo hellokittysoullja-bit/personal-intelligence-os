@@ -97,7 +97,7 @@ application/orchestrator-core → domain`. Разделение внутри с�
 - `packages/database` — PostgreSQL repositories поверх Drizzle ORM;
 - `packages/model-gateway` — адаптеры провайдеров моделей;
 - `packages/workflow-engine` — `LangGraphWorkflowEngine` и в будущем другие;
-- `packages/browser-runtime` — Playwright adapter;
+- `packages/browser-runtime` — будущий Playwright adapter; пока отсутствует. Его domain/application/database control-plane для versioned `BrowserProfile`/`BrowserSession` уже существует, но не запускает Chromium, не хранит profile paths/cookies и не может выполнять action (ADR-016);
 - `packages/tool-runtime` — filesystem/terminal/git tools, реализация
   `ToolExecutor`/`ToolRegistry` (единственная точка выполнения инструментов
   — см. §8);

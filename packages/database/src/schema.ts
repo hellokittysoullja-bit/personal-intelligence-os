@@ -1,6 +1,6 @@
 import type { DurableJob, Evidence, MemoryRecord, MissionBudget, ResearchReport, ResearchReportVerification } from "@pios/domain";
 import { sql } from "drizzle-orm";
-import { index, integer, jsonb, pgTable, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
+import { boolean, index, integer, jsonb, pgTable, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
 
 /** docs/DOMAIN_MODEL.md §1 */
 export const goals = pgTable("goals", {
@@ -114,6 +114,43 @@ export const approvalRequests = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [index("approval_requests_owner_status_expires_at_idx").on(table.ownerId, table.status, table.expiresAt)],
+);
+
+/**
+ * Browser control-plane only. Chromium profile paths, cookies, credentials,
+ * URLs and page text are intentionally never persisted in this table.
+ */
+export const browserProfiles = pgTable(
+  "browser_profiles",
+  {
+    id: uuid("id").primaryKey(),
+    ownerId: text("owner_id").notNull(),
+    label: text("label").notNull(),
+    mode: text("mode").notNull(),
+    status: text("status").notNull(),
+    version: integer("version").notNull().default(1),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index("browser_profiles_owner_created_at_idx").on(table.ownerId, table.createdAt)],
+);
+
+/** Session control state; no observed page content or browser credentials. */
+export const browserSessions = pgTable(
+  "browser_sessions",
+  {
+    id: uuid("id").primaryKey(),
+    ownerId: text("owner_id").notNull(),
+    profileId: uuid("profile_id").notNull().references(() => browserProfiles.id),
+    status: text("status").notNull(),
+    controlOwner: text("control_owner").notNull(),
+    reobservationRequired: boolean("reobservation_required").notNull().default(true),
+    version: integer("version").notNull().default(1),
+    lastObservedAt: timestamp("last_observed_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index("browser_sessions_profile_status_idx").on(table.profileId, table.status)],
 );
 
 /** Durable worker control-plane: lease/heartbeat хранятся в БД и переживают рестарт процесса. */

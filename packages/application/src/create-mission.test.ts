@@ -1,6 +1,10 @@
 import { randomUUID } from "node:crypto";
 import type {
   ApprovalRepository,
+  BrowserProfile,
+  BrowserProfileRepository,
+  BrowserSession,
+  BrowserSessionRepository,
   DomainEvent,
   DurableJob,
   DurableJobRepository,
@@ -26,6 +30,7 @@ import type {
 } from "@pios/domain";
 import { describe, expect, it } from "vitest";
 import { createCreateMission } from "./create-mission";
+import { createCreateBrowserProfile, createDisableBrowserProfile } from "./browser-profile";
 import {
   createConfirmMissionContract,
   createUpdateMissionContract,
@@ -49,6 +54,8 @@ function createFakeUnitOfWork() {
   const tasks: Task[] = [];
   const evidence: Evidence[] = [];
   const approvals: import("@pios/domain").ApprovalRequest[] = [];
+  const browserProfiles: BrowserProfile[] = [];
+  const browserSessions: BrowserSession[] = [];
   const durableJobs: DurableJob[] = [];
   const memories: MemoryRecord[] = [];
   const reports: ResearchReport[] = [];
@@ -110,6 +117,29 @@ function createFakeUnitOfWork() {
       return true;
     },
     async listPendingByOwner(ownerId) { return approvals.filter((request) => request.ownerId === ownerId && request.status === "pending"); },
+  };
+
+  const browserProfileRepository: BrowserProfileRepository = {
+    async create(profile) { browserProfiles.push(profile); },
+    async getById(profileId) { return browserProfiles.find((profile) => profile.id === profileId) ?? null; },
+    async listByOwner(ownerId) { return browserProfiles.filter((profile) => profile.ownerId === ownerId); },
+    async update(profile, expectedVersion) {
+      const index = browserProfiles.findIndex((item) => item.id === profile.id && item.version === expectedVersion);
+      if (index < 0) return false;
+      browserProfiles[index] = profile;
+      return true;
+    },
+  };
+
+  const browserSessionRepository: BrowserSessionRepository = {
+    async create(session) { browserSessions.push(session); },
+    async getById(sessionId) { return browserSessions.find((session) => session.id === sessionId) ?? null; },
+    async update(session, expectedVersion) {
+      const index = browserSessions.findIndex((item) => item.id === session.id && item.version === expectedVersion);
+      if (index < 0) return false;
+      browserSessions[index] = session;
+      return true;
+    },
   };
 
   const durableJobRepository: DurableJobRepository = {
@@ -181,11 +211,11 @@ function createFakeUnitOfWork() {
 
   const unitOfWork: UnitOfWork = {
     async run(fn) {
-      return fn({ goals: goalRepository, missions: missionRepository, tasks: taskRepository, evidence: evidenceRepository, approvals: approvalRepository, durableJobs: durableJobRepository, memories: memoryRepository, reports: reportRepository, reportVerifications: reportVerificationRepository, events: eventStore });
+      return fn({ goals: goalRepository, missions: missionRepository, tasks: taskRepository, evidence: evidenceRepository, approvals: approvalRepository, browserProfiles: browserProfileRepository, browserSessions: browserSessionRepository, durableJobs: durableJobRepository, memories: memoryRepository, reports: reportRepository, reportVerifications: reportVerificationRepository, events: eventStore });
     },
   };
 
-  return { unitOfWork, goals, missions, tasks, evidence, durableJobs, memories, reports, reportVerifications, events };
+  return { unitOfWork, goals, missions, tasks, evidence, browserProfiles, browserSessions, durableJobs, memories, reports, reportVerifications, events };
 }
 
 class QueueModelRouter implements ModelRouter {
@@ -206,6 +236,36 @@ class QueueModelRouter implements ModelRouter {
     };
   }
 }
+
+describe("Browser profile control plane", () => {
+  it("creates and disables an owner profile with versioned audit events", async () => {
+    const { unitOfWork, browserProfiles, events } = createFakeUnitOfWork();
+    const createProfile = createCreateBrowserProfile(unitOfWork);
+    const disableProfile = createDisableBrowserProfile(unitOfWork);
+
+    const created = await createProfile({ ownerId: "owner-1", label: "Isolated research", mode: "agent_isolated" });
+    expect(created.profile).toMatchObject({ ownerId: "owner-1", label: "Isolated research", mode: "agent_isolated", status: "active", version: 1 });
+    expect(browserProfiles).toHaveLength(1);
+    expect(events.at(-1)?.eventType).toBe("BrowserProfileCreated");
+    expect(events.at(-1)?.payload).not.toHaveProperty("label");
+
+    const disabled = await disableProfile({ profileId: created.profile.id, ownerId: "owner-1", expectedVersion: 1 });
+    expect(disabled.profile).toMatchObject({ status: "disabled", version: 2 });
+    expect(events.at(-1)?.eventType).toBe("BrowserProfileDisabled");
+  });
+
+  it("rejects cross-owner and stale browser profile transitions", async () => {
+    const { unitOfWork } = createFakeUnitOfWork();
+    const createProfile = createCreateBrowserProfile(unitOfWork);
+    const disableProfile = createDisableBrowserProfile(unitOfWork);
+    const created = await createProfile({ ownerId: "owner-1", label: "General browser", mode: "owner_shared" });
+
+    await expect(disableProfile({ profileId: created.profile.id, ownerId: "owner-2", expectedVersion: 1 }))
+      .rejects.toMatchObject({ code: "BROWSER_PROFILE_NOT_FOUND" });
+    await expect(disableProfile({ profileId: created.profile.id, ownerId: "owner-1", expectedVersion: 99 }))
+      .rejects.toMatchObject({ code: "BROWSER_PROFILE_VERSION_CONFLICT" });
+  });
+});
 
 describe("CreateMission", () => {
   it("создаёт Goal, Mission и событие MissionCreated атомарно", async () => {

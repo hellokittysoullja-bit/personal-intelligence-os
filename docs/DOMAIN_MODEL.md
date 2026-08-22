@@ -402,3 +402,18 @@ EvaluationStarted, EvaluationCompleted
    `supersede`, не сосуществуют (§9).
 9. `forget()` в MemoryStore не переписывает `mission_events` — это
    осознанный, задокументированный компромисс, не полное удаление (§9).
+
+## 14. BrowserProfile и BrowserSession control-plane
+
+`BrowserProfile` и `BrowserSession` реализованы как owner-scoped versioned control-plane (ADR-016). Они выражают намерение и безопасное состояние будущего browser runtime, а не содержимое настоящего профиля Chromium.
+
+| Сущность | Ключевые поля | Инварианты |
+| --- | --- | --- |
+| `BrowserProfile` | `id`, `ownerId`, `label`, `mode`, `status`, `version`, timestamps | `mode` равен `agent_isolated` или `owner_shared`; disabled profile не может порождать новые sessions; изменение состояния выполняется CAS по `version`. |
+| `BrowserSession` | `id`, `ownerId`, `profileId`, `status`, `controlOwner`, `reobservationRequired`, `version`, timestamps | Новая session всегда `paused` и требует полного наблюдения. После `human_takeover` либо возврата агенту повторное наблюдение обязательно до будущего action. |
+
+Режим `agent_isolated` создаёт будущую session с owner control `agent`, но до полного наблюдения действие всё равно запрещено. Режим `owner_shared` начинает с owner control `human`; агент не может наблюдать или действовать без явного возврата управления. `active` session допускается только после полного наблюдения и только для будущего `ToolExecutor → PolicyEngine` path.
+
+В текущем срезе persistence хранит лишь control-plane state. Не сохраняются filesystem path, URL, page text, screenshot, cookie, credential, пароль или payload browser action. Создание и отключение profile создают append-only audit events с техническим ID, mode, status и version; label и чувствительные browser data в event не попадают.
+
+> Это не означает, что Chromium/Playwright уже установлен или запущен. Пока отсутствуют `ToolExecutor`, `PolicyEngine`, реальный browser adapter и owner-mediated transport для human takeover. Поэтому нельзя открывать сайты, подключать аккаунты или выполнять browser actions через эту модель.

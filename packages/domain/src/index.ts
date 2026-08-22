@@ -33,6 +33,32 @@ export type { Task, TaskStatus } from "./task";
 export { evidenceSchema } from "./evidence";
 export { approvalRequestSchema, approvalRiskLevelSchema, approvalStatusSchema, consumeApproval, decideApproval } from "./approval";
 export type { ApprovalRequest, ApprovalRiskLevel, ApprovalStatus } from "./approval";
+export {
+  BrowserRuntimeError,
+  assertBrowserActionReady,
+  browserControlOwnerSchema,
+  browserProfileModeSchema,
+  browserProfileSchema,
+  browserProfileStatusSchema,
+  browserSessionSchema,
+  browserSessionStatusSchema,
+  closeBrowserSession,
+  createBrowserProfile,
+  createBrowserSession,
+  disableBrowserProfile,
+  recordFullObservation,
+  requestHumanTakeover,
+  returnControlToAgent,
+} from "./browser";
+export type {
+  BrowserControlOwner,
+  BrowserProfile,
+  BrowserProfileMode,
+  BrowserProfileStatus,
+  BrowserRuntimeErrorCode,
+  BrowserSession,
+  BrowserSessionStatus,
+} from "./browser";
 export { blockForRecovery, durableJobSchema, durableJobStatusSchema, durableJobTypeSchema } from "./durable-job";
 export type { DurableJob, DurableJobStatus, DurableJobType } from "./durable-job";
 export type { Evidence } from "./evidence";
@@ -82,6 +108,8 @@ export {
   createMissionContractUpdatedEvent,
   createMissionCreatedEvent,
   createMissionResearchPlannedEvent,
+  createBrowserProfileCreatedEvent,
+  createBrowserProfileDisabledEvent,
   createMemoryActivatedEvent,
   createMemoryApprovedEvent,
   createMemoryCandidateCreatedEvent,
@@ -96,6 +124,7 @@ export type {
   DomainEvent,
   MissionContractPayload,
   MissionCreatedPayload,
+  BrowserProfileLifecyclePayload,
   MemoryLifecyclePayload,
   MissionResearchPlannedPayload,
   ResearchEvidenceCapturedPayload,
@@ -104,6 +133,8 @@ export type {
 } from "./event";
 export type {
   ApprovalRepository,
+  BrowserProfileRepository,
+  BrowserSessionRepository,
   DurableJobRepository,
   EvidenceRepository,
   EventStore,

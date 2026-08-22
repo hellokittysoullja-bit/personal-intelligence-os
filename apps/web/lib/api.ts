@@ -30,6 +30,10 @@ import type {
   ApprovalResponse,
   DecideApprovalRequest,
   ListApprovalsResponse,
+  BrowserProfileDto,
+  BrowserProfileResponse,
+  CreateBrowserProfileRequest,
+  ListBrowserProfilesResponse,
 } from "@pios/contracts";
 
 export function getApiUrl(): string {
@@ -42,6 +46,32 @@ async function parseJsonOrThrow<T>(response: Response): Promise<T> {
     throw new Error(`API ${response.status}: ${body}`);
   }
   return (await response.json()) as T;
+}
+
+export async function listBrowserProfiles(): Promise<BrowserProfileDto[]> {
+  const response = await fetch(`${getApiUrl()}/browser/profiles`, { cache: "no-store" });
+  const data = await parseJsonOrThrow<ListBrowserProfilesResponse>(response);
+  return data.profiles;
+}
+
+export async function createBrowserProfile(input: CreateBrowserProfileRequest): Promise<BrowserProfileDto> {
+  const response = await fetch(`${getApiUrl()}/browser/profiles`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  const data = await parseJsonOrThrow<BrowserProfileResponse>(response);
+  return data.profile;
+}
+
+export async function disableBrowserProfile(profileId: string, expectedVersion: number): Promise<BrowserProfileDto> {
+  const response = await fetch(`${getApiUrl()}/browser/profiles/${profileId}/disable`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ expectedVersion }),
+  });
+  const data = await parseJsonOrThrow<BrowserProfileResponse>(response);
+  return data.profile;
 }
 
 export async function listApprovals(): Promise<ApprovalDto[]> {

@@ -1,6 +1,8 @@
 import { randomUUID } from "node:crypto";
 import {
   createCaptureOwnerEvidence,
+  createCreateBrowserProfile,
+  createDisableBrowserProfile,
   createDecideApproval,
   createCapturePublicEvidence,
   createConfirmMissionContract,
@@ -18,6 +20,7 @@ import {
   createEventStore,
   createEvidenceRepository,
   createApprovalRepository,
+  createBrowserProfileRepository,
   createMissionRepository,
   createMemoryRepository,
   createResearchReportRepository,
@@ -39,6 +42,7 @@ describe.skipIf(!process.env.DATABASE_URL)("apps/api mission routes (real Postgr
     const unitOfWork = createUnitOfWork(db.db);
     const missionRepository = createMissionRepository(db.db);
     const approvalRepository = createApprovalRepository(db.db);
+    const browserProfileRepository = createBrowserProfileRepository(db.db);
     const memoryRepository = createMemoryRepository(db.db);
     const taskRepository = createTaskRepository(db.db);
     const eventStore = createEventStore(db.db);
@@ -46,6 +50,8 @@ describe.skipIf(!process.env.DATABASE_URL)("apps/api mission routes (real Postgr
     const researchReportRepository = createResearchReportRepository(db.db);
     const researchReportVerificationRepository = createResearchReportVerificationRepository(db.db);
     const createMission = createCreateMission(unitOfWork);
+    const createBrowserProfile = createCreateBrowserProfile(unitOfWork);
+    const disableBrowserProfile = createDisableBrowserProfile(unitOfWork);
     const decideApproval = createDecideApproval(unitOfWork);
     const createMemoryCandidate = createCreateMemoryCandidate(unitOfWork);
     const approveMemory = createApproveMemory(unitOfWork);
@@ -63,6 +69,8 @@ describe.skipIf(!process.env.DATABASE_URL)("apps/api mission routes (real Postgr
       ownerId: `test-owner-${Date.now()}`,
       webOrigin: "http://localhost:3000",
       createMission,
+      createBrowserProfile,
+      disableBrowserProfile,
       decideApproval,
       createMemoryCandidate,
       approveMemory,
@@ -75,6 +83,7 @@ describe.skipIf(!process.env.DATABASE_URL)("apps/api mission routes (real Postgr
       planResearchMission,
       missionRepository,
       approvalRepository,
+      browserProfileRepository,
       memoryRepository,
       taskRepository,
       evidenceRepository,
@@ -257,6 +266,43 @@ describe.skipIf(!process.env.DATABASE_URL)("apps/api mission routes (real Postgr
       expect(events.json().events.map((event: { eventType: string }) => event.eventType)).toEqual([
         "MissionCreated", "MissionContractUpdated", "MissionContractConfirmed",
       ]);
+    } finally {
+      await teardown();
+    }
+  });
+
+  it("управляет browser profile control-plane через owner-only API без запуска браузера", async () => {
+    const { app, teardown } = await setup();
+    try {
+      const invalid = await app.inject({ method: "POST", url: "/browser/profiles", payload: { label: "x", mode: "unknown" } });
+      expect(invalid.statusCode).toBe(400);
+
+      const isolated = await app.inject({
+        method: "POST", url: "/browser/profiles", payload: { label: "Research", mode: "agent_isolated" },
+      });
+      expect(isolated.statusCode).toBe(201);
+      expect(isolated.json().profile).toMatchObject({ label: "Research", mode: "agent_isolated", status: "active", version: 1 });
+
+      const shared = await app.inject({
+        method: "POST", url: "/browser/profiles", payload: { label: "General", mode: "owner_shared" },
+      });
+      expect(shared.statusCode).toBe(201);
+
+      const listed = await app.inject({ method: "GET", url: "/browser/profiles" });
+      expect(listed.statusCode).toBe(200);
+      expect(listed.json().profiles.map((profile: { mode: string }) => profile.mode)).toEqual(["agent_isolated", "owner_shared"]);
+
+      const disabled = await app.inject({
+        method: "POST", url: `/browser/profiles/${isolated.json().profile.id}/disable`, payload: { expectedVersion: 1 },
+      });
+      expect(disabled.statusCode).toBe(200);
+      expect(disabled.json().profile).toMatchObject({ status: "disabled", version: 2 });
+
+      const stale = await app.inject({
+        method: "POST", url: `/browser/profiles/${isolated.json().profile.id}/disable`, payload: { expectedVersion: 1 },
+      });
+      expect(stale.statusCode).toBe(409);
+      expect(stale.json().error).toBe("browser_profile_version_conflict");
     } finally {
       await teardown();
     }

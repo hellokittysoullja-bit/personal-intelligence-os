@@ -1,6 +1,7 @@
 import type { UnitOfWork } from "@pios/domain";
 import type { Database } from "./client";
 import { createApprovalRepository } from "./approval-repository";
+import { createBrowserProfileRepository, createBrowserSessionRepository } from "./browser-repository";
 import { createEvidenceRepository } from "./evidence-repository";
 import { createDurableJobRepository } from "./durable-job-repository";
 import { createEventStore } from "./event-repository";
@@ -22,6 +23,8 @@ export function createUnitOfWork(db: Database): UnitOfWork {
           tasks: createTaskRepository(tx),
           evidence: createEvidenceRepository(tx),
           approvals: createApprovalRepository(tx),
+          browserProfiles: createBrowserProfileRepository(tx),
+          browserSessions: createBrowserSessionRepository(tx),
           durableJobs: createDurableJobRepository(tx),
           memories: createMemoryRepository(tx),
           reports: createResearchReportRepository(tx),

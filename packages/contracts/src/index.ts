@@ -81,6 +81,22 @@ export type {
 } from "./memory";
 
 export {
+  browserProfileDtoSchema,
+  browserProfileResponseSchema,
+  createBrowserProfileRequestSchema,
+  disableBrowserProfileRequestSchema,
+  listBrowserProfilesResponseSchema,
+} from "./browser-profile";
+export type {
+  BrowserProfileDto,
+  BrowserProfileResponse,
+  BrowserProfileMode,
+  CreateBrowserProfileRequest,
+  DisableBrowserProfileRequest,
+  ListBrowserProfilesResponse,
+} from "./browser-profile";
+
+export {
   approvalDtoSchema,
   approvalResponseSchema,
   decideApprovalRequestSchema,

@@ -330,3 +330,50 @@ export function createMemorySupersededEvent(memory: Parameters<typeof createMemo
 export function createMemoryForgottenEvent(memory: Parameters<typeof createMemoryLifecycleEvent>[1], traceId?: string): DomainEvent {
   return createMemoryLifecycleEvent("MemoryForgotten", memory, traceId);
 }
+
+export interface BrowserProfileLifecyclePayload {
+  profileId: string;
+  mode: string;
+  status: string;
+  version: number;
+}
+
+function createBrowserProfileLifecycleEvent(
+  eventType: "BrowserProfileCreated" | "BrowserProfileDisabled",
+  profile: { id: string; ownerId: string; mode: string; status: string; version: number },
+  traceId?: string,
+): DomainEvent {
+  return {
+    eventId: randomUUID(),
+    eventType,
+    timestamp: new Date().toISOString(),
+    ownerId: profile.ownerId,
+    missionId: null,
+    taskId: null,
+    agentJobId: null,
+    traceId: traceId ?? randomUUID(),
+    causationId: null,
+    correlationId: profile.id,
+    payload: {
+      profileId: profile.id,
+      mode: profile.mode,
+      status: profile.status,
+      version: profile.version,
+    } satisfies BrowserProfileLifecyclePayload,
+    schemaVersion: 1,
+  };
+}
+
+export function createBrowserProfileCreatedEvent(
+  profile: Parameters<typeof createBrowserProfileLifecycleEvent>[1],
+  traceId?: string,
+): DomainEvent {
+  return createBrowserProfileLifecycleEvent("BrowserProfileCreated", profile, traceId);
+}
+
+export function createBrowserProfileDisabledEvent(
+  profile: Parameters<typeof createBrowserProfileLifecycleEvent>[1],
+  traceId?: string,
+): DomainEvent {
+  return createBrowserProfileLifecycleEvent("BrowserProfileDisabled", profile, traceId);
+}

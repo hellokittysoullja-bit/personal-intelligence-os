@@ -6,6 +6,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { createMission, listMissions } from "../lib/api";
 import { MemoryEditor } from "./memory-editor";
 import { ApprovalEditor } from "./approval-editor";
+import { BrowserProfileEditor } from "./browser-profile-editor";
 
 const containerStyle = {
   fontFamily: "system-ui, sans-serif",
@@ -72,7 +73,7 @@ export default function HomePage() {
       <p>
         Миссия создаётся под контролем владельца. Доступны read-only research, цитируемые drafts,
         независимая проверка при отдельной server-side конфигурации и versioned memory с явным review.
-        Автоматические внешние действия по-прежнему не включены.
+        Автоматические внешние действия по-прежнему не включены. Browser profiles пока управляют только безопасным control-plane, без запуска Chromium или доступа к аккаунтам.
       </p>
 
       <form onSubmit={handleSubmit} style={{ display: "flex", flexWrap: "wrap", gap: "0.5rem", margin: "1.5rem 0" }}>
@@ -137,6 +138,7 @@ export default function HomePage() {
 
       <MemoryEditor />
       <ApprovalEditor />
+      <BrowserProfileEditor />
     </main>
   );
 }

@@ -5,7 +5,9 @@ import {
 } from "@pios/application";
 import type {
   CaptureOwnerEvidence,
+  CreateBrowserProfile,
   DecideApproval,
+  DisableBrowserProfile,
   CapturePublicEvidence,
   ConfirmMissionContract,
   CreateMemoryCandidate,
@@ -20,6 +22,10 @@ import type {
 } from "@pios/application";
 import {
   approvalResponseSchema,
+  browserProfileResponseSchema,
+  createBrowserProfileRequestSchema,
+  disableBrowserProfileRequestSchema,
+  listBrowserProfilesResponseSchema,
   decideApprovalRequestSchema,
   listApprovalsResponseSchema,
   captureOwnerEvidenceRequestSchema,
@@ -57,6 +63,7 @@ import {
 import {
   DomainError,
   type ApprovalRepository,
+  type BrowserProfileRepository,
   type EvidenceRepository,
   type EventStore,
   type MissionRepository,
@@ -91,6 +98,8 @@ export interface BuildServerOptions {
   webOrigin: string;
   authToken?: string;
   createMission: CreateMission;
+  createBrowserProfile: CreateBrowserProfile;
+  disableBrowserProfile: DisableBrowserProfile;
   decideApproval: DecideApproval;
   createMemoryCandidate: CreateMemoryCandidate;
   approveMemory: ApproveMemory;
@@ -105,6 +114,7 @@ export interface BuildServerOptions {
   verifyResearchReport?: VerifyResearchReport;
   missionRepository: MissionRepository;
   approvalRepository: ApprovalRepository;
+  browserProfileRepository: BrowserProfileRepository;
   memoryRepository: MemoryRepository;
   taskRepository: TaskRepository;
   evidenceRepository: EvidenceRepository;
@@ -131,6 +141,8 @@ export function buildServer({
   webOrigin,
   authToken,
   createMission,
+  createBrowserProfile,
+  disableBrowserProfile,
   decideApproval,
   createMemoryCandidate,
   approveMemory,
@@ -145,6 +157,7 @@ export function buildServer({
   verifyResearchReport,
   missionRepository,
   approvalRepository,
+  browserProfileRepository,
   memoryRepository,
   taskRepository,
   evidenceRepository,
@@ -235,6 +248,49 @@ export function buildServer({
         decision: body.data.decision,
       });
       return approvalResponseSchema.parse({ approval });
+    } catch (error) {
+      const domainError = sendDomainError(error, reply);
+      if (domainError) return domainError;
+      throw error;
+    }
+  });
+
+  app.get("/browser/profiles", async () => {
+    const profiles = await browserProfileRepository.listByOwner(ownerId);
+    return listBrowserProfilesResponseSchema.parse({ profiles });
+  });
+
+  app.post("/browser/profiles", async (request, reply) => {
+    const body = createBrowserProfileRequestSchema.safeParse(request.body);
+    if (!body.success) {
+      reply.code(400);
+      return { error: "invalid_request" };
+    }
+    try {
+      const { profile } = await createBrowserProfile({ ...body.data, ownerId });
+      reply.code(201);
+      return browserProfileResponseSchema.parse({ profile });
+    } catch (error) {
+      const domainError = sendDomainError(error, reply);
+      if (domainError) return domainError;
+      throw error;
+    }
+  });
+
+  app.post("/browser/profiles/:id/disable", async (request, reply) => {
+    const params = missionParamsSchema.safeParse(request.params);
+    const body = disableBrowserProfileRequestSchema.safeParse(request.body);
+    if (!params.success || !body.success) {
+      reply.code(400);
+      return { error: "invalid_request" };
+    }
+    try {
+      const { profile } = await disableBrowserProfile({
+        profileId: params.data.id,
+        ownerId,
+        expectedVersion: body.data.expectedVersion,
+      });
+      return browserProfileResponseSchema.parse({ profile });
     } catch (error) {
       const domainError = sendDomainError(error, reply);
       if (domainError) return domainError;

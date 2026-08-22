@@ -1,4 +1,5 @@
 import type { ApprovalRequest } from "./approval";
+import type { BrowserProfile, BrowserSession } from "./browser";
 import type { DurableJob } from "./durable-job";
 import type { Evidence } from "./evidence";
 import type { DomainEvent } from "./event";
@@ -47,6 +48,19 @@ export interface ApprovalRepository {
   listPendingByOwner(ownerId: string): Promise<ApprovalRequest[]>;
 }
 
+export interface BrowserProfileRepository {
+  create(profile: BrowserProfile): Promise<void>;
+  getById(profileId: string): Promise<BrowserProfile | null>;
+  listByOwner(ownerId: string): Promise<BrowserProfile[]>;
+  update(profile: BrowserProfile, expectedVersion: number): Promise<boolean>;
+}
+
+export interface BrowserSessionRepository {
+  create(session: BrowserSession): Promise<void>;
+  getById(sessionId: string): Promise<BrowserSession | null>;
+  update(session: BrowserSession, expectedVersion: number): Promise<boolean>;
+}
+
 export interface DurableJobRepository {
   create(job: DurableJob): Promise<void>;
   listExpiredRunning(now: string): Promise<DurableJob[]>;
@@ -91,6 +105,8 @@ export interface UnitOfWorkContext {
   tasks: TaskRepository;
   evidence: EvidenceRepository;
   approvals: ApprovalRepository;
+  browserProfiles: BrowserProfileRepository;
+  browserSessions: BrowserSessionRepository;
   durableJobs: DurableJobRepository;
   memories: MemoryRepository;
   reports: ResearchReportRepository;
