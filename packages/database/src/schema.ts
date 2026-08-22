@@ -1,4 +1,4 @@
-import type { Evidence, MemoryRecord, MissionBudget, ResearchReport, ResearchReportVerification } from "@pios/domain";
+import type { DurableJob, Evidence, MemoryRecord, MissionBudget, ResearchReport, ResearchReportVerification } from "@pios/domain";
 import { sql } from "drizzle-orm";
 import { index, integer, jsonb, pgTable, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
 
@@ -93,6 +93,28 @@ export const evidence = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [index("evidence_mission_id_created_at_idx").on(table.missionId, table.createdAt)],
+);
+
+/** Durable worker control-plane: lease/heartbeat хранятся в БД и переживают рестарт процесса. */
+export const durableJobs = pgTable(
+  "durable_jobs",
+  {
+    id: uuid("id").primaryKey(),
+    ownerId: text("owner_id").notNull(),
+    missionId: uuid("mission_id").references(() => missions.id),
+    jobType: text("job_type").notNull(),
+    payload: jsonb("payload").notNull().$type<DurableJob["payload"]>(),
+    status: text("status").notNull(),
+    attempt: integer("attempt").notNull().default(0),
+    maxAttempts: integer("max_attempts").notNull().default(1),
+    leaseOwner: text("lease_owner"),
+    leaseExpiresAt: timestamp("lease_expires_at", { withTimezone: true }),
+    lastHeartbeatAt: timestamp("last_heartbeat_at", { withTimezone: true }),
+    lastError: text("last_error"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index("durable_jobs_status_created_at_idx").on(table.status, table.createdAt)],
 );
 
 /**

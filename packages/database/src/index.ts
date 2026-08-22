@@ -8,6 +8,7 @@ export { createGoalRepository } from "./goal-repository";
 export { createMissionRepository } from "./mission-repository";
 export { createTaskRepository } from "./task-repository";
 export { createEvidenceRepository } from "./evidence-repository";
+export { createDurableJobRepository } from "./durable-job-repository";
 export { createMemoryRepository } from "./memory-repository";
 export { createResearchReportRepository } from "./research-report-repository";
 export { createResearchReportVerificationRepository } from "./research-report-verification-repository";

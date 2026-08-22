@@ -1,6 +1,8 @@
 import { randomUUID } from "node:crypto";
 import type {
   DomainEvent,
+  DurableJob,
+  DurableJobRepository,
   Evidence,
   EvidenceRepository,
   EventStore,
@@ -32,6 +34,7 @@ import { createCapturePublicEvidence } from "./capture-public-evidence";
 import { createCaptureOwnerEvidence } from "./capture-owner-evidence";
 import { createGenerateResearchReport } from "./generate-research-report";
 import { createVerifyResearchReport } from "./verify-research-report";
+import { createReconcileDurableJobs } from "./reconcile-durable-jobs";
 import {
   createActivateMemory,
   createApproveMemory,
@@ -44,6 +47,7 @@ function createFakeUnitOfWork() {
   const missions: Mission[] = [];
   const tasks: Task[] = [];
   const evidence: Evidence[] = [];
+  const durableJobs: DurableJob[] = [];
   const memories: MemoryRecord[] = [];
   const reports: ResearchReport[] = [];
   const reportVerifications: ResearchReportVerification[] = [];
@@ -91,6 +95,19 @@ function createFakeUnitOfWork() {
     },
     async listByMission(missionId) {
       return evidence.filter((item) => item.missionId === missionId);
+    },
+  };
+
+  const durableJobRepository: DurableJobRepository = {
+    async create(job) { durableJobs.push(job); },
+    async listExpiredRunning(now) {
+      return durableJobs.filter((job) => job.status === "running" && job.leaseExpiresAt !== null && job.leaseExpiresAt < now);
+    },
+    async update(job) {
+      const index = durableJobs.findIndex((item) => item.id === job.id && item.status === "running");
+      if (index < 0) return false;
+      durableJobs[index] = job;
+      return true;
     },
   };
 
@@ -150,11 +167,11 @@ function createFakeUnitOfWork() {
 
   const unitOfWork: UnitOfWork = {
     async run(fn) {
-      return fn({ goals: goalRepository, missions: missionRepository, tasks: taskRepository, evidence: evidenceRepository, memories: memoryRepository, reports: reportRepository, reportVerifications: reportVerificationRepository, events: eventStore });
+      return fn({ goals: goalRepository, missions: missionRepository, tasks: taskRepository, evidence: evidenceRepository, durableJobs: durableJobRepository, memories: memoryRepository, reports: reportRepository, reportVerifications: reportVerificationRepository, events: eventStore });
     },
   };
 
-  return { unitOfWork, goals, missions, tasks, evidence, memories, reports, reportVerifications, events };
+  return { unitOfWork, goals, missions, tasks, evidence, durableJobs, memories, reports, reportVerifications, events };
 }
 
 class QueueModelRouter implements ModelRouter {
@@ -550,5 +567,24 @@ describe("MemoryLifecycle", () => {
     await expect(createActivateMemory(unitOfWork)({
       memoryId: candidate.memory.id, ownerId: "owner-1", expectedVersion: candidate.memory.version,
     })).rejects.toMatchObject({ code: "MEMORY_INVALID_STATUS" });
+  });
+});
+
+
+describe("DurableJobRecovery", () => {
+  it("блокирует истёкший running job вместо автоматического retry", async () => {
+    const { unitOfWork, durableJobs } = createFakeUnitOfWork();
+    durableJobs.push({
+      id: randomUUID(), ownerId: "owner-1", missionId: null, jobType: "read_only_reconcile", payload: {},
+      status: "running", attempt: 1, maxAttempts: 3, leaseOwner: "worker-a",
+      leaseExpiresAt: "2026-08-21T00:00:00.000Z", lastHeartbeatAt: "2026-08-21T00:00:00.000Z",
+      lastError: null, createdAt: "2026-08-20T00:00:00.000Z", updatedAt: "2026-08-21T00:00:00.000Z",
+    });
+
+    const result = await createReconcileDurableJobs(unitOfWork)("2026-08-22T00:00:00.000Z");
+
+    expect(result.blockedIds).toEqual([durableJobs[0]?.id]);
+    expect(durableJobs[0]?.status).toBe("blocked_recovery");
+    expect(durableJobs[0]?.lastError).toContain("requires explicit reconciliation");
   });
 });

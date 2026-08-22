@@ -31,6 +31,8 @@ export {
 } from "./task";
 export type { Task, TaskStatus } from "./task";
 export { evidenceSchema } from "./evidence";
+export { blockForRecovery, durableJobSchema, durableJobStatusSchema, durableJobTypeSchema } from "./durable-job";
+export type { DurableJob, DurableJobStatus, DurableJobType } from "./durable-job";
 export type { Evidence } from "./evidence";
 export {
   memoryProvenanceSchema,
@@ -99,6 +101,7 @@ export type {
   ResearchReportVerifiedPayload,
 } from "./event";
 export type {
+  DurableJobRepository,
   EvidenceRepository,
   EventStore,
   GoalRepository,

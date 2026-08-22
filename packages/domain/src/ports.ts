@@ -1,3 +1,4 @@
+import type { DurableJob } from "./durable-job";
 import type { Evidence } from "./evidence";
 import type { DomainEvent } from "./event";
 import type { Goal } from "./goal";
@@ -38,6 +39,12 @@ export interface EvidenceRepository {
   listByMission(missionId: string): Promise<Evidence[]>;
 }
 
+export interface DurableJobRepository {
+  create(job: DurableJob): Promise<void>;
+  listExpiredRunning(now: string): Promise<DurableJob[]>;
+  update(job: DurableJob): Promise<boolean>;
+}
+
 export interface MemoryRepository {
   create(memory: MemoryRecord): Promise<void>;
   getById(memoryId: string): Promise<MemoryRecord | null>;
@@ -75,6 +82,7 @@ export interface UnitOfWorkContext {
   missions: MissionRepository;
   tasks: TaskRepository;
   evidence: EvidenceRepository;
+  durableJobs: DurableJobRepository;
   memories: MemoryRepository;
   reports: ResearchReportRepository;
   reportVerifications: ResearchReportVerificationRepository;

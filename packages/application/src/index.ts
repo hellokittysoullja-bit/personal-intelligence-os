@@ -15,6 +15,7 @@ export { createCaptureOwnerEvidence } from "./capture-owner-evidence";
 export { createCapturePublicEvidence } from "./capture-public-evidence";
 export { createGenerateResearchReport } from "./generate-research-report";
 export { createVerifyResearchReport } from "./verify-research-report";
+export { createReconcileDurableJobs } from "./reconcile-durable-jobs";
 export {
   createActivateMemory,
   createApproveMemory,
@@ -25,6 +26,7 @@ export type { CaptureOwnerEvidence, CaptureOwnerEvidenceInput } from "./capture-
 export type { CapturePublicEvidence, CapturePublicEvidenceInput } from "./capture-public-evidence";
 export type { GenerateResearchReport, GenerateResearchReportInput } from "./generate-research-report";
 export type { VerifyResearchReport, VerifyResearchReportInput } from "./verify-research-report";
+export type { ReconcileDurableJobs } from "./reconcile-durable-jobs";
 export type {
   ActivateMemory,
   ApproveMemory,
