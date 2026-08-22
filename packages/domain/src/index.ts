@@ -32,6 +32,19 @@ export {
 export type { Task, TaskStatus } from "./task";
 export { evidenceSchema } from "./evidence";
 export type { Evidence } from "./evidence";
+export { capabilityProfiles } from "./model";
+export type {
+  CapabilityProfile,
+  ModelCompletion,
+  ModelMessage,
+  ModelProvider,
+  ModelRequest,
+  ModelRole,
+  ModelRouter,
+  ResolvedModelRequest,
+  StructuredOutputSchema,
+  UsageReport,
+} from "./model";
 export {
   createMissionContractConfirmedEvent,
   createMissionContractUpdatedEvent,

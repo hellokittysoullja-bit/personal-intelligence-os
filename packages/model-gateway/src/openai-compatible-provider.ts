@@ -1,10 +1,6 @@
 import { z } from "zod";
-import {
-  type ModelCompletion,
-  type ModelProvider,
-  type ResolvedModelRequest,
-  ModelGatewayError,
-} from "./model-gateway";
+import type { ModelCompletion, ModelProvider, ResolvedModelRequest } from "@pios/domain";
+import { ModelGatewayError } from "./model-gateway";
 
 const openAiResponseSchema = z.object({
   choices: z.array(
