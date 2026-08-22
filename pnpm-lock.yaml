@@ -46,6 +46,9 @@ importers:
       '@pios/observability':
         specifier: workspace:*
         version: link:../../packages/observability
+      '@pios/source-reader':
+        specifier: workspace:*
+        version: link:../../packages/source-reader
       dotenv:
         specifier: ^16.4.7
         version: 16.6.1
@@ -219,6 +222,18 @@ importers:
         specifier: ^9.6.0
         version: 9.14.0
     devDependencies:
+      typescript:
+        specifier: ^5.7.2
+        version: 5.9.3
+      vitest:
+        specifier: ^2.1.8
+        version: 2.1.9(@types/node@22.20.1)
+
+  packages/source-reader:
+    devDependencies:
+      '@types/node':
+        specifier: ^22.10.5
+        version: 22.20.1
       typescript:
         specifier: ^5.7.2
         version: 5.9.3

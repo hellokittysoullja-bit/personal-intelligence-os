@@ -24,12 +24,14 @@ export type {
 
 export {
   captureOwnerEvidenceRequestSchema,
+  capturePublicEvidenceRequestSchema,
   captureOwnerEvidenceResponseSchema,
   evidenceDtoSchema,
   listEvidenceResponseSchema,
 } from "./evidence";
 export type {
   CaptureOwnerEvidenceRequest,
+  CapturePublicEvidenceRequest,
   CaptureOwnerEvidenceResponse,
   EvidenceDto,
   ListEvidenceResponse,

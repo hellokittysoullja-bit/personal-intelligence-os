@@ -1,5 +1,6 @@
 import type {
   CaptureOwnerEvidenceRequest,
+  CapturePublicEvidenceRequest,
   CaptureOwnerEvidenceResponse,
   ConfirmMissionContractRequest,
   CreateMissionResponse,
@@ -89,6 +90,19 @@ export async function captureOwnerEvidence(
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(evidence),
+  });
+  const data = await parseJsonOrThrow<CaptureOwnerEvidenceResponse>(response);
+  return data.evidence;
+}
+
+export async function capturePublicEvidence(
+  missionId: string,
+  request: CapturePublicEvidenceRequest,
+): Promise<EvidenceDto> {
+  const response = await fetch(`${getApiUrl()}/missions/${missionId}/evidence/fetch`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(request),
   });
   const data = await parseJsonOrThrow<CaptureOwnerEvidenceResponse>(response);
   return data.evidence;

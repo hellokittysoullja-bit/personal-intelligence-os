@@ -2,7 +2,7 @@
 
 import type { EvidenceDto, MissionDto } from "@pios/contracts";
 import { useEffect, useState, type FormEvent } from "react";
-import { captureOwnerEvidence, listEvidence } from "../../../lib/api";
+import { captureOwnerEvidence, capturePublicEvidence, listEvidence } from "../../../lib/api";
 
 type Props = { mission: MissionDto };
 
@@ -21,6 +21,20 @@ export function EvidenceEditor({ mission }: Props) {
 
   if (mission.status !== "planning" || mission.currentPhase !== "plan") return null;
 
+  async function fetchPublicSource() {
+    setSaving(true);
+    setError(null);
+    try {
+      const evidence = await capturePublicEvidence(mission.id, { sourceUrl });
+      setItems((previous) => [...previous, evidence]);
+      setSourceUrl("");
+    } catch {
+      setError("Система не смогла безопасно прочитать этот URL. Разрешены только доступные публичные текстовые страницы без перенаправлений.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
   async function submit(event: FormEvent) {
     event.preventDefault();
     setSaving(true);
@@ -38,11 +52,12 @@ export function EvidenceEditor({ mission }: Props) {
 
   return <section aria-labelledby="evidence-title" style={{ margin: "1.5rem 0" }}>
     <h2 id="evidence-title">Источники и evidence</h2>
-    <p style={{ opacity: 0.8 }}>Добавьте проверенный фрагмент источника. Он сохраняется в журнале, но система ещё не открывает сайты, не входит в аккаунты и не выполняет внешние действия.</p>
+    <p style={{ opacity: 0.8 }}>Можно вставить публичный URL: система прочитает только текстовую страницу с коротким лимитом и сохранит фрагмент. Она не входит в аккаунты, не следует перенаправлениям и не выполняет внешние действия.</p>
     {error && <p role="alert" style={{ color: "#9f1239" }}>{error}</p>}
     <form onSubmit={submit}>
       <label htmlFor="evidence-url">URL источника</label>
       <input id="evidence-url" type="url" required value={sourceUrl} onChange={(event) => setSourceUrl(event.target.value)} style={{ display: "block", width: "100%", margin: "0.25rem 0 0.75rem" }} />
+      <button type="button" onClick={() => void fetchPublicSource()} disabled={saving || !sourceUrl.trim()} style={{ marginBottom: "0.75rem" }}>{saving ? "Читаю..." : "Прочитать публичную страницу"}</button>
       <label htmlFor="evidence-title-input">Заголовок</label>
       <input id="evidence-title-input" required value={title} onChange={(event) => setTitle(event.target.value)} style={{ display: "block", width: "100%", margin: "0.25rem 0 0.75rem" }} />
       <label htmlFor="evidence-excerpt">Проверяемый фрагмент</label>

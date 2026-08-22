@@ -1,6 +1,7 @@
 import path from "node:path";
 import {
   createCaptureOwnerEvidence,
+  createCapturePublicEvidence,
   createConfirmMissionContract,
   createCreateMission,
   createPlanResearchMission,
@@ -41,6 +42,7 @@ async function main(): Promise<void> {
   const evidenceRepository = createEvidenceRepository(db.db);
   const createMission = createCreateMission(unitOfWork);
   const captureOwnerEvidence = createCaptureOwnerEvidence(unitOfWork);
+  const capturePublicEvidence = createCapturePublicEvidence(unitOfWork);
   const updateMissionContract = createUpdateMissionContract(unitOfWork);
   const confirmMissionContract = createConfirmMissionContract(unitOfWork);
   const planResearchMission = createPlanResearchMission(unitOfWork);
@@ -53,6 +55,7 @@ async function main(): Promise<void> {
     authToken: env.API_AUTH_TOKEN,
     createMission,
     captureOwnerEvidence,
+    capturePublicEvidence,
     updateMissionContract,
     confirmMissionContract,
     planResearchMission,

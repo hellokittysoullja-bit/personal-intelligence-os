@@ -18,6 +18,7 @@ import {
   createUpdateMissionContract,
 } from "./mission-contract";
 import { createPlanResearchMission } from "./plan-research-mission";
+import { createCapturePublicEvidence } from "./capture-public-evidence";
 
 function createFakeUnitOfWork() {
   const goals: Goal[] = [];
@@ -245,6 +246,31 @@ describe("CaptureOwnerEvidence", () => {
     expect(evidence).toHaveLength(1);
     expect(result.evidence.contentHash).toHaveLength(64);
     expect(result.evidence.provenance.collector).toBe("owner_provided");
+    expect(events.at(-1)?.eventType).toBe("ResearchEvidenceCaptured");
+  });
+});
+
+
+describe("CapturePublicEvidence", () => {
+  it("сохраняет public read-only source с корректным provenance", async () => {
+    const { unitOfWork, evidence, events } = createFakeUnitOfWork();
+    const created = await createCreateMission(unitOfWork)({ ownerId: "owner-1", rawRequest: "Исследуй рынок" });
+    const updated = await createUpdateMissionContract(unitOfWork)({
+      missionId: created.mission.id, ownerId: "owner-1", expectedVersion: created.mission.version,
+      objective: "Исследовать рынок", autonomyLevel: "supervised", riskLevel: "L1", budget: created.mission.budget,
+      successCriteria: ["Есть источники"], constraints: [], unknowns: [], assumptions: [], stopConditions: [],
+    });
+    const confirmed = await createConfirmMissionContract(unitOfWork)({ missionId: updated.mission.id, ownerId: "owner-1", expectedVersion: updated.mission.version });
+    await createPlanResearchMission(unitOfWork)({ missionId: confirmed.mission.id, ownerId: "owner-1", expectedVersion: confirmed.mission.version });
+
+    const result = await createCapturePublicEvidence(unitOfWork)({
+      missionId: created.mission.id, ownerId: "owner-1", sourceUrl: "https://example.com/source",
+      title: "Источник", excerpt: "Проверяемый открытый текст", contentType: "text/html",
+      retrievedAt: "2026-08-22T00:00:00.000Z", contentHash: "a".repeat(64), confidence: 0.5,
+    });
+
+    expect(evidence).toHaveLength(1);
+    expect(result.evidence.provenance.collector).toBe("http_read_only");
     expect(events.at(-1)?.eventType).toBe("ResearchEvidenceCaptured");
   });
 });

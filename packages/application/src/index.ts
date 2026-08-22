@@ -12,6 +12,8 @@ export type {
 } from "./mission-contract";
 export { buildEvidenceDossier } from "./build-evidence-dossier";
 export { createCaptureOwnerEvidence } from "./capture-owner-evidence";
+export { createCapturePublicEvidence } from "./capture-public-evidence";
 export type { CaptureOwnerEvidence, CaptureOwnerEvidenceInput } from "./capture-owner-evidence";
+export type { CapturePublicEvidence, CapturePublicEvidenceInput } from "./capture-public-evidence";
 export { createPlanResearchMission } from "./plan-research-mission";
 export type { PlanResearchMission, PlanResearchMissionInput } from "./plan-research-mission";

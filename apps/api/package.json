@@ -18,6 +18,7 @@
     "@pios/database": "workspace:*",
     "@pios/domain": "workspace:*",
     "@pios/observability": "workspace:*",
+    "@pios/source-reader": "workspace:*",
     "dotenv": "^16.4.7",
     "fastify": "^5.2.0",
     "zod": "^3.24.1"

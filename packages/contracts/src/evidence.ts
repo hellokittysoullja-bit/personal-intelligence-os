@@ -12,6 +12,11 @@ export const captureOwnerEvidenceRequestSchema = z.object({
 });
 export type CaptureOwnerEvidenceRequest = z.infer<typeof captureOwnerEvidenceRequestSchema>;
 
+export const capturePublicEvidenceRequestSchema = z.object({
+  sourceUrl: z.string().url().max(2_000),
+});
+export type CapturePublicEvidenceRequest = z.infer<typeof capturePublicEvidenceRequestSchema>;
+
 export const captureOwnerEvidenceResponseSchema = z.object({
   evidence: evidenceDtoSchema,
 });

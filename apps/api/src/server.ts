@@ -1,10 +1,11 @@
-import { timingSafeEqual } from "node:crypto";
+import { createHash, timingSafeEqual } from "node:crypto";
 import cors from "@fastify/cors";
 import {
   buildEvidenceDossier,
 } from "@pios/application";
 import type {
   CaptureOwnerEvidence,
+  CapturePublicEvidence,
   ConfirmMissionContract,
   CreateMission,
   PlanResearchMission,
@@ -12,6 +13,7 @@ import type {
 } from "@pios/application";
 import {
   captureOwnerEvidenceRequestSchema,
+  capturePublicEvidenceRequestSchema,
   captureOwnerEvidenceResponseSchema,
   confirmMissionContractRequestSchema,
   createMissionRequestSchema,
@@ -40,7 +42,18 @@ import {
 } from "@pios/domain";
 import type { Logger } from "@pios/observability";
 import Fastify from "fastify";
+import { readPublicTextSource } from "@pios/source-reader";
 import { z, ZodError } from "zod";
+
+function cleanText(value: string, maxLength: number): string {
+  return value.replace(/<script[\s\S]*?<\/script>|<style[\s\S]*?<\/style>|<[^>]+>/gi, " ")
+    .replace(/\s+/g, " ").trim().slice(0, maxLength);
+}
+
+function titleFromSource(body: string, sourceUrl: string): string {
+  const title = body.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1];
+  return cleanText(title ?? new URL(sourceUrl).hostname, 500) || new URL(sourceUrl).hostname;
+}
 
 const missionParamsSchema = z.object({
   id: z.string().uuid(),
@@ -54,6 +67,7 @@ export interface BuildServerOptions {
   authToken?: string;
   createMission: CreateMission;
   captureOwnerEvidence: CaptureOwnerEvidence;
+  capturePublicEvidence: CapturePublicEvidence;
   updateMissionContract: UpdateMissionContract;
   confirmMissionContract: ConfirmMissionContract;
   planResearchMission: PlanResearchMission;
@@ -82,6 +96,7 @@ export function buildServer({
   authToken,
   createMission,
   captureOwnerEvidence,
+  capturePublicEvidence,
   updateMissionContract,
   confirmMissionContract,
   planResearchMission,
@@ -211,6 +226,41 @@ export function buildServer({
       const domainError = sendDomainError(error, reply);
       if (domainError) return domainError;
       throw error;
+    }
+  });
+
+  app.post("/missions/:id/evidence/fetch", async (request, reply) => {
+    const params = missionParamsSchema.safeParse(request.params);
+    const body = capturePublicEvidenceRequestSchema.safeParse(request.body);
+    if (!params.success || !body.success) {
+      reply.code(400);
+      return { error: "invalid_request" };
+    }
+    try {
+      const source = await readPublicTextSource(body.data.sourceUrl);
+      const excerpt = cleanText(source.body, 8_000);
+      if (!excerpt) {
+        reply.code(422);
+        return { error: "empty_text_source" };
+      }
+      const { evidence } = await capturePublicEvidence({
+        missionId: params.data.id,
+        ownerId,
+        sourceUrl: source.finalUrl,
+        title: titleFromSource(source.body, source.finalUrl),
+        excerpt,
+        contentType: source.contentType,
+        retrievedAt: source.retrievedAt,
+        contentHash: createHash("sha256").update(source.body).digest("hex"),
+        confidence: 0.5,
+      });
+      reply.code(201);
+      return captureOwnerEvidenceResponseSchema.parse({ evidence });
+    } catch (error) {
+      const domainError = sendDomainError(error, reply);
+      if (domainError) return domainError;
+      reply.code(422);
+      return { error: "source_fetch_rejected" };
     }
   });
 
