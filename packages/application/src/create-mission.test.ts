@@ -30,6 +30,7 @@ import type {
 } from "@pios/domain";
 import { describe, expect, it } from "vitest";
 import { createCreateMission } from "./create-mission";
+import { createDecideApproval } from "./approval";
 import { createCreateBrowserProfile, createDisableBrowserProfile } from "./browser-profile";
 import {
   createConfirmMissionContract,
@@ -666,7 +667,7 @@ describe("DurableJobRecovery", () => {
 
 describe("ApprovalDecision", () => {
   it("разрешает owner approve только pending request и fail-closed при expiry", async () => {
-    const { unitOfWork } = createFakeUnitOfWork();
+    const { unitOfWork, events } = createFakeUnitOfWork();
     const request = {
       id: randomUUID(), ownerId: "owner-1", missionId: null, channel: "telegram" as const,
       actionKind: "send_message", riskLevel: "L3" as const, preview: "Send", payloadHash: "a".repeat(64),
@@ -674,8 +675,16 @@ describe("ApprovalDecision", () => {
       createdAt: "2026-08-22T00:00:00.000Z",
     };
     await unitOfWork.run((ctx) => ctx.approvals.create(request));
-    const { createDecideApproval } = await import("./approval");
-    const approved = await createDecideApproval(unitOfWork)({ approvalId: request.id, ownerId: "owner-1", decision: "approved" });
+    const decideApproval = createDecideApproval(unitOfWork);
+    const approved = await decideApproval({ approvalId: request.id, ownerId: "owner-1", decision: "approved" });
     expect(approved.request.status).toBe("approved");
+    expect(events.at(-1)?.eventType).toBe("ApprovalDecided");
+    expect(events.at(-1)?.payload).not.toHaveProperty("preview");
+
+    const expired = { ...request, id: randomUUID(), expiresAt: "2000-01-01T00:00:00.000Z" };
+    await unitOfWork.run((ctx) => ctx.approvals.create(expired));
+    const expiredResult = await decideApproval({ approvalId: expired.id, ownerId: "owner-1", decision: "approved" });
+    expect(expiredResult.request.status).toBe("expired");
+    expect(events.at(-1)?.eventType).toBe("ApprovalExpired");
   });
 });

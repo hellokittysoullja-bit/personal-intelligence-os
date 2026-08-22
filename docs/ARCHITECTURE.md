@@ -98,19 +98,14 @@ application/orchestrator-core → domain`. Разделение внутри с�
 - `packages/model-gateway` — адаптеры провайдеров моделей;
 - `packages/workflow-engine` — `LangGraphWorkflowEngine` и в будущем другие;
 - `packages/browser-runtime` — будущий Playwright adapter; пока отсутствует. Его domain/application/database control-plane для versioned `BrowserProfile`/`BrowserSession` уже существует, но не запускает Chromium, не хранит profile paths/cookies и не может выполнять action (ADR-016);
-- `packages/tool-runtime` — filesystem/terminal/git tools, реализация
-  `ToolExecutor`/`ToolRegistry` (единственная точка выполнения инструментов
-  — см. §8);
+- `packages/tool-runtime` — реализованный fail-closed `ToolExecutor`: policy decision, immutable approval proposal и atomic single-use consumption. Registry и реальные filesystem/terminal/git/browser adapters пока отсутствуют (ADR-017);
 - `packages/agent-runtime` — реализация порта `AgentRuntime`: получает
   `AgentJob`, строит его контекст (`contextPolicy`), вызывает
   `ModelRouter`/`ModelProvider`, предлагает вызовы инструментов через
   `packages/tool-runtime`, возвращает `AgentJobResult`. До Milestone 0
   этот пакет отсутствовал в документе, хотя порт `AgentRuntime` уже был
   описан в §5 — исправлено;
-- `packages/policy` — реализация порта `PolicyEngine` (классификация
-  L0–L4, решения auto/require_approval/deny — см. `SECURITY.md`). До
-  аудита `PolicyEngine` существовал только как порт без указанного дома —
-  исправлено;
+- `packages/policy` — консервативная `PolicyEngine` implementation (L0/L1 auto; L2 deny до явной project policy; L3/L4 external require approval; см. ADR-017). До аудита `PolicyEngine` существовал только как порт без указанного дома — исправлено;
 - `packages/artifacts` — локальное хранилище артефактов (в будущем S3);
 - `packages/observability` — логирование, трассировка;
 - `packages/testkit` — общие fake-реализации портов для тестов

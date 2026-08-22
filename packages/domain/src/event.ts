@@ -377,3 +377,77 @@ export function createBrowserProfileDisabledEvent(
 ): DomainEvent {
   return createBrowserProfileLifecycleEvent("BrowserProfileDisabled", profile, traceId);
 }
+
+export interface ApprovalLifecyclePayload {
+  approvalId: string;
+  channel: string;
+  actionKind: string;
+  riskLevel: string;
+  payloadHash: string;
+  status: string;
+}
+
+function createApprovalLifecycleEvent(
+  eventType: "ApprovalRequested" | "ApprovalDecided" | "ApprovalConsumed" | "ApprovalExpired",
+  approval: {
+    id: string;
+    ownerId: string;
+    missionId: string | null;
+    channel: string;
+    actionKind: string;
+    riskLevel: string;
+    payloadHash: string;
+    status: string;
+  },
+  traceId?: string,
+): DomainEvent {
+  return {
+    eventId: randomUUID(),
+    eventType,
+    timestamp: new Date().toISOString(),
+    ownerId: approval.ownerId,
+    missionId: approval.missionId,
+    taskId: null,
+    agentJobId: null,
+    traceId: traceId ?? randomUUID(),
+    causationId: null,
+    correlationId: approval.id,
+    payload: {
+      approvalId: approval.id,
+      channel: approval.channel,
+      actionKind: approval.actionKind,
+      riskLevel: approval.riskLevel,
+      payloadHash: approval.payloadHash,
+      status: approval.status,
+    } satisfies ApprovalLifecyclePayload,
+    schemaVersion: 1,
+  };
+}
+
+export function createApprovalRequestedEvent(
+  approval: Parameters<typeof createApprovalLifecycleEvent>[1],
+  traceId?: string,
+): DomainEvent {
+  return createApprovalLifecycleEvent("ApprovalRequested", approval, traceId);
+}
+
+export function createApprovalDecidedEvent(
+  approval: Parameters<typeof createApprovalLifecycleEvent>[1],
+  traceId?: string,
+): DomainEvent {
+  return createApprovalLifecycleEvent("ApprovalDecided", approval, traceId);
+}
+
+export function createApprovalConsumedEvent(
+  approval: Parameters<typeof createApprovalLifecycleEvent>[1],
+  traceId?: string,
+): DomainEvent {
+  return createApprovalLifecycleEvent("ApprovalConsumed", approval, traceId);
+}
+
+export function createApprovalExpiredEvent(
+  approval: Parameters<typeof createApprovalLifecycleEvent>[1],
+  traceId?: string,
+): DomainEvent {
+  return createApprovalLifecycleEvent("ApprovalExpired", approval, traceId);
+}

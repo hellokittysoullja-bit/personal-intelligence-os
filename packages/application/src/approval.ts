@@ -1,4 +1,10 @@
-import { DomainError, decideApproval, type UnitOfWork } from "@pios/domain";
+import {
+  createApprovalDecidedEvent,
+  createApprovalExpiredEvent,
+  DomainError,
+  decideApproval,
+  type UnitOfWork,
+} from "@pios/domain";
 
 export interface DecideApprovalInput {
   approvalId: string;
@@ -15,6 +21,9 @@ export function createDecideApproval(unitOfWork: UnitOfWork) {
       if (!await ctx.approvals.update(request, "pending")) {
         throw new DomainError("APPROVAL_CONFLICT", "Approval changed concurrently; reload before retrying");
       }
+      await ctx.events.append(request.status === "expired"
+        ? createApprovalExpiredEvent(request)
+        : createApprovalDecidedEvent(request));
       return { request };
     });
   };
