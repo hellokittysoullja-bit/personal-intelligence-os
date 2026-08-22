@@ -97,7 +97,7 @@ application/orchestrator-core → domain`. Разделение внутри с�
 - `packages/database` — PostgreSQL repositories поверх Drizzle ORM;
 - `packages/model-gateway` — адаптеры провайдеров моделей;
 - `packages/workflow-engine` — `LangGraphWorkflowEngine` и в будущем другие;
-- `packages/browser-runtime` — будущий Playwright adapter; пока отсутствует. Его domain/application/database control-plane для versioned `BrowserProfile`/`BrowserSession` уже существует, но не запускает Chromium, не хранит profile paths/cookies и не может выполнять action (ADR-016);
+- `packages/browser-runtime` — изолированный Playwright persistent-context launcher для `agent_isolated` profile UUID directory и SSRF request guard (ADR-018). Chromium binary, navigation/observe/action tools, session orchestration и owner-shared transport пока отсутствуют; default Chrome profile не поддерживается;
 - `packages/tool-runtime` — реализованный fail-closed `ToolExecutor`: policy decision, immutable approval proposal и atomic single-use consumption. Registry и реальные filesystem/terminal/git/browser adapters пока отсутствуют (ADR-017);
 - `packages/agent-runtime` — реализация порта `AgentRuntime`: получает
   `AgentJob`, строит его контекст (`contextPolicy`), вызывает
