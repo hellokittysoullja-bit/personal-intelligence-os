@@ -1,9 +1,11 @@
 import path from "node:path";
 import dotenv from "dotenv";
-import { createDatabaseClient } from "@pios/database";
+import { createReconcileDurableJobs } from "@pios/application";
+import { createDatabaseClient, createUnitOfWork } from "@pios/database";
 import { createLogger } from "@pios/observability";
 import { loadEnv } from "./env";
 import { buildServer } from "./server";
+import { startRecoveryLoop } from "./recovery-loop";
 
 const SHUTDOWN_TIMEOUT_MS = 10_000;
 
@@ -16,12 +18,17 @@ async function main(): Promise<void> {
   const logger = createLogger({ service: "worker", level: env.LOG_LEVEL });
   const db = createDatabaseClient(env.DATABASE_URL);
   const app = buildServer({ logger, db });
+  const reconcile = createReconcileDurableJobs(createUnitOfWork(db.db));
 
   await app.listen({ port: env.WORKER_PORT, host: "0.0.0.0" });
+  const recoveryLoop = startRecoveryLoop({
+    reconcile,
+    intervalMs: env.WORKER_RECONCILE_INTERVAL_MS,
+    logger,
+  });
   logger.info(
     { port: env.WORKER_PORT },
-    // TODO(M2): начать диспетчеризацию миссий через Postgres LISTEN/NOTIFY
-    "apps/worker started (idle — mission dispatch lands in Milestone 2)",
+    "apps/worker started (reconciliation-only; no queued job execution or external actions)",
   );
 
   let shuttingDown = false;
@@ -37,6 +44,7 @@ async function main(): Promise<void> {
     forceExitTimer.unref();
 
     try {
+      recoveryLoop.stop();
       await app.close();
       await db.sql.end({ timeout: 5 });
       clearTimeout(forceExitTimer);

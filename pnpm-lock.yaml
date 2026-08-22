@@ -108,6 +108,9 @@ importers:
 
   apps/worker:
     dependencies:
+      '@pios/application':
+        specifier: workspace:*
+        version: link:../../packages/application
       '@pios/contracts':
         specifier: workspace:*
         version: link:../../packages/contracts
