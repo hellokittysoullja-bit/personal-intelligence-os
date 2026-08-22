@@ -13,6 +13,8 @@ import type {
   ModelRouter,
   ResearchReport,
   ResearchReportRepository,
+  ResearchReportVerification,
+  ResearchReportVerificationRepository,
   Task,
   TaskRepository,
   UnitOfWork,
@@ -27,6 +29,7 @@ import { createPlanResearchMission } from "./plan-research-mission";
 import { createCapturePublicEvidence } from "./capture-public-evidence";
 import { createCaptureOwnerEvidence } from "./capture-owner-evidence";
 import { createGenerateResearchReport } from "./generate-research-report";
+import { createVerifyResearchReport } from "./verify-research-report";
 
 function createFakeUnitOfWork() {
   const goals: Goal[] = [];
@@ -34,6 +37,7 @@ function createFakeUnitOfWork() {
   const tasks: Task[] = [];
   const evidence: Evidence[] = [];
   const reports: ResearchReport[] = [];
+  const reportVerifications: ResearchReportVerification[] = [];
   const events: DomainEvent[] = [];
 
   const goalRepository: GoalRepository = {
@@ -85,8 +89,20 @@ function createFakeUnitOfWork() {
     async create(report) {
       reports.push(report);
     },
+    async getById(reportId) {
+      return reports.find((report) => report.id === reportId) ?? null;
+    },
     async listByMission(missionId) {
       return reports.filter((report) => report.missionId === missionId);
+    },
+  };
+
+  const reportVerificationRepository: ResearchReportVerificationRepository = {
+    async create(verification) {
+      reportVerifications.push(verification);
+    },
+    async listByReport(reportId) {
+      return reportVerifications.filter((verification) => verification.reportId === reportId);
     },
   };
 
@@ -104,11 +120,11 @@ function createFakeUnitOfWork() {
 
   const unitOfWork: UnitOfWork = {
     async run(fn) {
-      return fn({ goals: goalRepository, missions: missionRepository, tasks: taskRepository, evidence: evidenceRepository, reports: reportRepository, events: eventStore });
+      return fn({ goals: goalRepository, missions: missionRepository, tasks: taskRepository, evidence: evidenceRepository, reports: reportRepository, reportVerifications: reportVerificationRepository, events: eventStore });
     },
   };
 
-  return { unitOfWork, goals, missions, tasks, evidence, reports, events };
+  return { unitOfWork, goals, missions, tasks, evidence, reports, reportVerifications, events };
 }
 
 class QueueModelRouter implements ModelRouter {
@@ -377,5 +393,68 @@ describe("GenerateResearchReport", () => {
     await expect(createGenerateResearchReport(setup.unitOfWork, model)({ missionId: created.mission.id, ownerId: "owner-1" }))
       .rejects.toMatchObject({ code: "MISSION_NOT_READY_FOR_REPORT" });
     expect(model.requests).toHaveLength(0);
+  });
+});
+
+
+describe("VerifyResearchReport", () => {
+  async function prepareReport() {
+    const setup = createFakeUnitOfWork();
+    const created = await createCreateMission(setup.unitOfWork)({ ownerId: "owner-1", rawRequest: "Исследуй рынок" });
+    const updated = await createUpdateMissionContract(setup.unitOfWork)({
+      missionId: created.mission.id, ownerId: "owner-1", expectedVersion: created.mission.version,
+      objective: "Исследовать рынок", autonomyLevel: "supervised", riskLevel: "L1", budget: created.mission.budget,
+      successCriteria: ["Есть проверяемые источники"], constraints: ["Только чтение"], unknowns: [], assumptions: [], stopConditions: [],
+    });
+    const confirmed = await createConfirmMissionContract(setup.unitOfWork)({ missionId: updated.mission.id, ownerId: "owner-1", expectedVersion: updated.mission.version });
+    await createPlanResearchMission(setup.unitOfWork)({ missionId: confirmed.mission.id, ownerId: "owner-1", expectedVersion: confirmed.mission.version });
+    const captured = await createCapturePublicEvidence(setup.unitOfWork)({
+      missionId: created.mission.id, ownerId: "owner-1", sourceUrl: "https://example.com/source", title: "Источник",
+      excerpt: "Проверяемый открытый текст", contentType: "text/html", retrievedAt: "2026-08-22T00:00:00.000Z",
+      contentHash: "c".repeat(64), confidence: 0.8,
+    });
+    const reportModel = new QueueModelRouter([JSON.stringify({
+      title: "Черновик", summary: { text: "Есть источник.", evidenceIds: [captured.evidence.id] },
+      claims: [{ statement: "Проверяемый текст сохранён.", evidenceIds: [captured.evidence.id], confidence: 0.8 }], limitations: [],
+    })]);
+    const generated = await createGenerateResearchReport(setup.unitOfWork, reportModel)({ missionId: created.mission.id, ownerId: "owner-1" });
+    return { ...setup, missionId: created.mission.id, evidenceId: captured.evidence.id, reportId: generated.report.id };
+  }
+
+  it("сохраняет независимый result и needs_review при inconclusive claim", async () => {
+    const setup = await prepareReport();
+    const verifier = new QueueModelRouter([JSON.stringify({
+      findings: [{ claimIndex: 0, verdict: "inconclusive", rationale: "Фрагмент слишком краток.", evidenceIds: [setup.evidenceId] }],
+      limitations: ["Недостаточно контекста."],
+    })]);
+
+    const result = await createVerifyResearchReport(setup.unitOfWork, verifier)({
+      missionId: setup.missionId, reportId: setup.reportId, ownerId: "owner-1",
+    });
+
+    expect(result.verification.verdict).toBe("needs_review");
+    expect(setup.reportVerifications).toHaveLength(1);
+    expect(setup.events.at(-1)?.eventType).toBe("ResearchReportVerified");
+    expect(verifier.requests[0]?.capability).toBe("verification_strict");
+  });
+
+  it("отклоняет citation вне claim и использует ровно одну repair-попытку", async () => {
+    const setup = await prepareReport();
+    const verifier = new QueueModelRouter([
+      JSON.stringify({
+        findings: [{ claimIndex: 0, verdict: "supported", rationale: "Неверная ссылка.", evidenceIds: [randomUUID()] }], limitations: [],
+      }),
+      JSON.stringify({
+        findings: [{ claimIndex: 0, verdict: "supported", rationale: "Фрагмент подтверждает claim.", evidenceIds: [setup.evidenceId] }], limitations: [],
+      }),
+    ]);
+
+    const result = await createVerifyResearchReport(setup.unitOfWork, verifier)({
+      missionId: setup.missionId, reportId: setup.reportId, ownerId: "owner-1",
+    });
+
+    expect(result.verification.verdict).toBe("passed");
+    expect(result.verification.model.repairAttempted).toBe(true);
+    expect(verifier.requests).toHaveLength(2);
   });
 });

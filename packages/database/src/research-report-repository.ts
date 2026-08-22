@@ -30,6 +30,14 @@ export function createResearchReportRepository(executor: Executor): ResearchRepo
         createdAt: new Date(report.createdAt),
       });
     },
+    async getById(reportId) {
+      const rows = await executor
+        .select()
+        .from(researchReports)
+        .where(eq(researchReports.id, reportId));
+      const row = rows[0];
+      return row ? toDomain(row) : null;
+    },
     async listByMission(missionId) {
       const rows = await executor
         .select()

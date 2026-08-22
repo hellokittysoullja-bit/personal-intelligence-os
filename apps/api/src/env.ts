@@ -20,6 +20,8 @@ export const envSchema = z.object({
   PIOS_MODEL_API_BASE: z.string().url().optional(),
   PIOS_MODEL_API_KEY: z.string().min(1).optional(),
   PIOS_MODEL_RESEARCH_LONG_CONTEXT: z.string().min(1).optional(),
+  // Необязательная отдельная модель/capability для независимой verifier-проверки.
+  PIOS_MODEL_VERIFICATION_STRICT: z.string().min(1).optional(),
   PIOS_MODEL_PROVIDER_ID: z.string().min(1).default("openai-compatible"),
 }).superRefine((env, context) => {
   if (env.NODE_ENV === "production" && !env.API_AUTH_TOKEN) {
@@ -35,6 +37,13 @@ export const envSchema = z.object({
       code: z.ZodIssueCode.custom,
       path: ["PIOS_MODEL_API_BASE"],
       message: "PIOS_MODEL_API_BASE, PIOS_MODEL_API_KEY and PIOS_MODEL_RESEARCH_LONG_CONTEXT must be set together",
+    });
+  }
+  if (env.PIOS_MODEL_VERIFICATION_STRICT && !modelFields.every(Boolean)) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["PIOS_MODEL_VERIFICATION_STRICT"],
+      message: "PIOS_MODEL_VERIFICATION_STRICT requires the complete model gateway configuration",
     });
   }
 });

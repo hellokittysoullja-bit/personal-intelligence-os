@@ -34,6 +34,17 @@ export { evidenceSchema } from "./evidence";
 export type { Evidence } from "./evidence";
 export { researchReportClaimSchema, researchReportContentSchema, researchReportSchema } from "./research-report";
 export type { ResearchReport, ResearchReportContent } from "./research-report";
+export {
+  claimVerificationVerdictSchema,
+  researchReportVerificationContentSchema,
+  researchReportVerificationFindingSchema,
+  researchReportVerificationSchema,
+} from "./research-report-verification";
+export type {
+  ClaimVerificationVerdict,
+  ResearchReportVerification,
+  ResearchReportVerificationContent,
+} from "./research-report-verification";
 export { capabilityProfiles } from "./model";
 export type {
   CapabilityProfile,
@@ -54,6 +65,7 @@ export {
   createMissionResearchPlannedEvent,
   createResearchEvidenceCapturedEvent,
   createResearchReportDraftedEvent,
+  createResearchReportVerifiedEvent,
   domainEventSchema,
 } from "./event";
 export type {
@@ -63,6 +75,7 @@ export type {
   MissionResearchPlannedPayload,
   ResearchEvidenceCapturedPayload,
   ResearchReportDraftedPayload,
+  ResearchReportVerifiedPayload,
 } from "./event";
 export type {
   EvidenceRepository,
@@ -70,6 +83,7 @@ export type {
   GoalRepository,
   MissionRepository,
   ResearchReportRepository,
+  ResearchReportVerificationRepository,
   TaskRepository,
   UnitOfWork,
   UnitOfWorkContext,

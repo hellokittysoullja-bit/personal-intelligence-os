@@ -3,6 +3,7 @@ import type { DomainEvent } from "./event";
 import type { Goal } from "./goal";
 import type { Mission } from "./mission";
 import type { ResearchReport } from "./research-report";
+import type { ResearchReportVerification } from "./research-report-verification";
 import type { Task } from "./task";
 
 /**
@@ -38,7 +39,13 @@ export interface EvidenceRepository {
 
 export interface ResearchReportRepository {
   create(report: ResearchReport): Promise<void>;
+  getById(reportId: string): Promise<ResearchReport | null>;
   listByMission(missionId: string): Promise<ResearchReport[]>;
+}
+
+export interface ResearchReportVerificationRepository {
+  create(verification: ResearchReportVerification): Promise<void>;
+  listByReport(reportId: string): Promise<ResearchReportVerification[]>;
 }
 
 export interface EventStore {
@@ -60,6 +67,7 @@ export interface UnitOfWorkContext {
   tasks: TaskRepository;
   evidence: EvidenceRepository;
   reports: ResearchReportRepository;
+  reportVerifications: ResearchReportVerificationRepository;
   events: EventStore;
 }
 

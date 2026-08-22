@@ -225,3 +225,50 @@ export function createResearchReportDraftedEvent(params: {
     schemaVersion: 1,
   };
 }
+
+
+export interface ResearchReportVerifiedPayload {
+  reportId: string;
+  verificationId: string;
+  verdict: "passed" | "needs_review";
+  providerId: string;
+  model: string;
+  requestId: string;
+  repairAttempted: boolean;
+}
+
+export function createResearchReportVerifiedEvent(params: {
+  ownerId: string;
+  missionId: string;
+  reportId: string;
+  verificationId: string;
+  verdict: "passed" | "needs_review";
+  providerId: string;
+  model: string;
+  requestId: string;
+  repairAttempted: boolean;
+  traceId?: string;
+}): DomainEvent {
+  return {
+    eventId: randomUUID(),
+    eventType: "ResearchReportVerified",
+    timestamp: new Date().toISOString(),
+    ownerId: params.ownerId,
+    missionId: params.missionId,
+    taskId: null,
+    agentJobId: null,
+    traceId: params.traceId ?? randomUUID(),
+    causationId: null,
+    correlationId: params.missionId,
+    payload: {
+      reportId: params.reportId,
+      verificationId: params.verificationId,
+      verdict: params.verdict,
+      providerId: params.providerId,
+      model: params.model,
+      requestId: params.requestId,
+      repairAttempted: params.repairAttempted,
+    } satisfies ResearchReportVerifiedPayload,
+    schemaVersion: 1,
+  };
+}

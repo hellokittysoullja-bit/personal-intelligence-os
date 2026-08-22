@@ -50,6 +50,19 @@ export type {
   ResearchReportDto,
 } from "./research-report";
 
+export {
+  listResearchReportVerificationsResponseSchema,
+  researchReportVerificationDtoSchema,
+  verifyResearchReportRequestSchema,
+  verifyResearchReportResponseSchema,
+} from "./research-report-verification";
+export type {
+  ListResearchReportVerificationsResponse,
+  ResearchReportVerificationDto,
+  VerifyResearchReportRequest,
+  VerifyResearchReportResponse,
+} from "./research-report-verification";
+
 export { eventDtoSchema, listEventsResponseSchema } from "./event";
 export type { EventDto, ListEventsResponse } from "./event";
 

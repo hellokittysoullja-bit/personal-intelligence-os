@@ -11,6 +11,7 @@ import type {
   CreateMission,
   PlanResearchMission,
   UpdateMissionContract,
+  VerifyResearchReport,
 } from "@pios/application";
 import {
   captureOwnerEvidenceRequestSchema,
@@ -22,6 +23,7 @@ import {
   eventDtoSchema,
   generateResearchReportRequestSchema,
   generateResearchReportResponseSchema,
+  listResearchReportVerificationsResponseSchema,
   getMissionResponseSchema,
   healthResponseSchema,
   listEventsResponseSchema,
@@ -31,6 +33,8 @@ import {
   listTasksResponseSchema,
   planResearchMissionRequestSchema,
   updateMissionContractRequestSchema,
+  verifyResearchReportRequestSchema,
+  verifyResearchReportResponseSchema,
 } from "@pios/contracts";
 import { ModelGatewayError } from "@pios/model-gateway";
 import {
@@ -44,6 +48,7 @@ import {
   type EventStore,
   type MissionRepository,
   type ResearchReportRepository,
+  type ResearchReportVerificationRepository,
   type TaskRepository,
 } from "@pios/domain";
 import type { Logger } from "@pios/observability";
@@ -78,10 +83,12 @@ export interface BuildServerOptions {
   confirmMissionContract: ConfirmMissionContract;
   planResearchMission: PlanResearchMission;
   generateResearchReport?: GenerateResearchReport;
+  verifyResearchReport?: VerifyResearchReport;
   missionRepository: MissionRepository;
   taskRepository: TaskRepository;
   evidenceRepository: EvidenceRepository;
   researchReportRepository: ResearchReportRepository;
+  researchReportVerificationRepository: ResearchReportVerificationRepository;
   eventStore: EventStore;
   eventBus: EventBus;
 }
@@ -109,10 +116,12 @@ export function buildServer({
   confirmMissionContract,
   planResearchMission,
   generateResearchReport,
+  verifyResearchReport,
   missionRepository,
   taskRepository,
   evidenceRepository,
   researchReportRepository,
+  researchReportVerificationRepository,
   eventStore,
   eventBus,
 }: BuildServerOptions) {
@@ -278,6 +287,52 @@ export function buildServer({
     }
     const reports = await researchReportRepository.listByMission(params.data.id);
     return listResearchReportsResponseSchema.parse({ reports });
+  });
+
+  app.post("/missions/:id/reports/:reportId/verify", async (request, reply) => {
+    const params = z.object({ id: z.string().uuid(), reportId: z.string().uuid() }).safeParse(request.params);
+    const body = verifyResearchReportRequestSchema.safeParse(request.body);
+    if (!params.success || !body.success) {
+      reply.code(400);
+      return { error: "invalid_request" };
+    }
+    if (!verifyResearchReport) {
+      reply.code(503);
+      return { error: "verifier_not_configured" };
+    }
+    try {
+      const { verification } = await verifyResearchReport({
+        missionId: params.data.id,
+        reportId: params.data.reportId,
+        ownerId,
+      });
+      reply.code(201);
+      return verifyResearchReportResponseSchema.parse({ verification });
+    } catch (error) {
+      const domainError = sendDomainError(error, reply);
+      if (domainError) return domainError;
+      if (error instanceof ModelGatewayError) {
+        reply.code(error.code === "configuration" ? 503 : 502);
+        return { error: error.code === "configuration" ? "verifier_not_configured" : "verification_failed" };
+      }
+      throw error;
+    }
+  });
+
+  app.get("/missions/:id/reports/:reportId/verifications", async (request, reply) => {
+    const params = z.object({ id: z.string().uuid(), reportId: z.string().uuid() }).safeParse(request.params);
+    if (!params.success) {
+      reply.code(400);
+      return { error: "invalid_path_params", details: params.error.flatten() };
+    }
+    const mission = await missionRepository.getById(params.data.id);
+    const report = await researchReportRepository.getById(params.data.reportId);
+    if (!mission || mission.ownerId !== ownerId || !report || report.missionId !== mission.id || report.ownerId !== ownerId) {
+      reply.code(404);
+      return { error: "report_not_found" };
+    }
+    const verifications = await researchReportVerificationRepository.listByReport(report.id);
+    return listResearchReportVerificationsResponseSchema.parse({ verifications });
   });
 
   app.post("/missions/:id/evidence/fetch", async (request, reply) => {

@@ -1,4 +1,4 @@
-import type { Evidence, MissionBudget, ResearchReport } from "@pios/domain";
+import type { Evidence, MissionBudget, ResearchReport, ResearchReportVerification } from "@pios/domain";
 import { index, integer, jsonb, pgTable, text, timestamp, uuid } from "drizzle-orm/pg-core";
 
 /** docs/DOMAIN_MODEL.md §1 */
@@ -110,6 +110,26 @@ export const researchReports = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (table) => [index("research_reports_mission_id_created_at_idx").on(table.missionId, table.createdAt)],
+);
+
+/** Независимые verifier results; report draft не перезаписывается их исходом. */
+export const researchReportVerifications = pgTable(
+  "research_report_verifications",
+  {
+    id: uuid("id").primaryKey(),
+    ownerId: text("owner_id").notNull(),
+    missionId: uuid("mission_id")
+      .notNull()
+      .references(() => missions.id),
+    reportId: uuid("report_id")
+      .notNull()
+      .references(() => researchReports.id),
+    verdict: text("verdict").notNull(),
+    content: jsonb("content").notNull().$type<ResearchReportVerification["content"]>(),
+    model: jsonb("model").notNull().$type<ResearchReportVerification["model"]>(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index("research_report_verifications_report_id_created_at_idx").on(table.reportId, table.createdAt)],
 );
 
 /**

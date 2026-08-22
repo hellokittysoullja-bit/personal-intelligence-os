@@ -6,6 +6,7 @@ import {
   createCreateMission,
   createPlanResearchMission,
   createGenerateResearchReport,
+  createVerifyResearchReport,
   createUpdateMissionContract,
 } from "@pios/application";
 import {
@@ -15,6 +16,7 @@ import {
   createEvidenceRepository,
   createMissionRepository,
   createResearchReportRepository,
+  createResearchReportVerificationRepository,
   createTaskRepository,
   createUnitOfWork,
 } from "@pios/database";
@@ -44,6 +46,7 @@ async function main(): Promise<void> {
   const eventStore = createEventStore(db.db);
   const evidenceRepository = createEvidenceRepository(db.db);
   const researchReportRepository = createResearchReportRepository(db.db);
+  const researchReportVerificationRepository = createResearchReportVerificationRepository(db.db);
   const createMission = createCreateMission(unitOfWork);
   const captureOwnerEvidence = createCaptureOwnerEvidence(unitOfWork);
   const capturePublicEvidence = createCapturePublicEvidence(unitOfWork);
@@ -57,14 +60,26 @@ async function main(): Promise<void> {
         baseUrl: env.PIOS_MODEL_API_BASE,
         apiKey: env.PIOS_MODEL_API_KEY,
       })],
-      [{
-        capability: "research_long_context",
-        providerId: env.PIOS_MODEL_PROVIDER_ID,
-        model: env.PIOS_MODEL_RESEARCH_LONG_CONTEXT,
-      }],
+      [
+        {
+          capability: "research_long_context",
+          providerId: env.PIOS_MODEL_PROVIDER_ID,
+          model: env.PIOS_MODEL_RESEARCH_LONG_CONTEXT,
+        },
+        ...(env.PIOS_MODEL_VERIFICATION_STRICT
+          ? [{
+              capability: "verification_strict" as const,
+              providerId: env.PIOS_MODEL_PROVIDER_ID,
+              model: env.PIOS_MODEL_VERIFICATION_STRICT,
+            }]
+          : []),
+      ],
     )
     : undefined;
   const generateResearchReport = modelRouter ? createGenerateResearchReport(unitOfWork, modelRouter) : undefined;
+  const verifyResearchReport = modelRouter && env.PIOS_MODEL_VERIFICATION_STRICT
+    ? createVerifyResearchReport(unitOfWork, modelRouter)
+    : undefined;
 
   const app = buildServer({
     logger,
@@ -79,10 +94,12 @@ async function main(): Promise<void> {
     confirmMissionContract,
     planResearchMission,
     generateResearchReport,
+    verifyResearchReport,
     missionRepository,
     taskRepository,
     evidenceRepository,
     researchReportRepository,
+    researchReportVerificationRepository,
     eventStore,
     eventBus,
   });

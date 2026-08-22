@@ -1,19 +1,32 @@
 "use client";
 
-import type { MissionDto, ResearchReportDto } from "@pios/contracts";
+import type { MissionDto, ResearchReportDto, ResearchReportVerificationDto } from "@pios/contracts";
 import { useCallback, useEffect, useState } from "react";
-import { generateResearchReport, listResearchReports } from "../../../lib/api";
+import {
+  generateResearchReport,
+  listResearchReportVerifications,
+  listResearchReports,
+  verifyResearchReport,
+} from "../../../lib/api";
 
 export function ReportEditor({ mission }: { mission: MissionDto }) {
   const [reports, setReports] = useState<ResearchReportDto[]>([]);
+  const [verifications, setVerifications] = useState<Record<string, ResearchReportVerificationDto[]>>({});
   const [isLoading, setIsLoading] = useState(true);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [verifyingReportId, setVerifyingReportId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setIsLoading(true);
     try {
-      setReports(await listResearchReports(mission.id));
+      const loadedReports = await listResearchReports(mission.id);
+      setReports(loadedReports);
+      const entries = await Promise.all(loadedReports.map(async (report) => [
+        report.id,
+        await listResearchReportVerifications(mission.id, report.id),
+      ] as const));
+      setVerifications(Object.fromEntries(entries));
     } catch {
       setError("Не удалось загрузить сохранённые черновики отчётов.");
     } finally {
@@ -33,6 +46,7 @@ export function ReportEditor({ mission }: { mission: MissionDto }) {
     try {
       const report = await generateResearchReport(mission.id);
       setReports((previous) => [...previous, report]);
+      setVerifications((previous) => ({ ...previous, [report.id]: [] }));
     } catch (requestError) {
       const message = requestError instanceof Error ? requestError.message : "";
       setError(
@@ -42,6 +56,27 @@ export function ReportEditor({ mission }: { mission: MissionDto }) {
       );
     } finally {
       setIsGenerating(false);
+    }
+  }
+
+  async function handleVerify(reportId: string) {
+    setVerifyingReportId(reportId);
+    setError(null);
+    try {
+      const verification = await verifyResearchReport(mission.id, reportId);
+      setVerifications((previous) => ({
+        ...previous,
+        [reportId]: [...(previous[reportId] ?? []), verification],
+      }));
+    } catch (requestError) {
+      const message = requestError instanceof Error ? requestError.message : "";
+      setError(
+        message.includes("503")
+          ? "Независимый strict verifier ещё не настроен на сервере. Черновик не менялся."
+          : "Не удалось проверить черновик. Повторите попытку после проверки источников.",
+      );
+    } finally {
+      setVerifyingReportId(null);
     }
   }
 
@@ -77,6 +112,27 @@ export function ReportEditor({ mission }: { mission: MissionDto }) {
           <p style={{ opacity: 0.65, fontSize: "0.85rem" }}>
             {new Date(report.createdAt).toLocaleString()} · {report.model.providerId}/{report.model.model} · repair: {report.model.repairAttempted ? "да" : "нет"}
           </p>
+          <button
+            type="button"
+            onClick={() => void handleVerify(report.id)}
+            disabled={!canGenerate || verifyingReportId === report.id}
+          >
+            {verifyingReportId === report.id ? "Проверяем claims..." : "Независимо проверить claims"}
+          </button>
+          {(verifications[report.id] ?? []).map((verification) => (
+            <section key={verification.id} style={{ marginTop: "0.75rem", padding: "0.75rem", background: "#f8fafc" }}>
+              <strong>Verifier: {verification.verdict === "passed" ? "все claims поддержаны" : "нужна проверка владельца"}</strong>
+              <ul>
+                {verification.content.findings.map((finding) => (
+                  <li key={`${verification.id}-${finding.claimIndex}`}>
+                    claim #{finding.claimIndex + 1}: {finding.verdict} — {finding.rationale} (evidence: {finding.evidenceIds.join(", ")})
+                  </li>
+                ))}
+              </ul>
+              {verification.content.limitations.length > 0 && <p>Ограничения verifier: {verification.content.limitations.join(" ")}</p>}
+              <small>{new Date(verification.createdAt).toLocaleString()} · {verification.model.providerId}/{verification.model.model}</small>
+            </section>
+          ))}
         </article>
       ))}
     </section>

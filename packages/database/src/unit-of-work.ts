@@ -5,6 +5,7 @@ import { createEventStore } from "./event-repository";
 import { createGoalRepository } from "./goal-repository";
 import { createMissionRepository } from "./mission-repository";
 import { createResearchReportRepository } from "./research-report-repository";
+import { createResearchReportVerificationRepository } from "./research-report-verification-repository";
 import { createTaskRepository } from "./task-repository";
 
 /** docs/decisions/ADR-004 — состояние и событие пишутся в одной транзакции. */
@@ -18,6 +19,7 @@ export function createUnitOfWork(db: Database): UnitOfWork {
           tasks: createTaskRepository(tx),
           evidence: createEvidenceRepository(tx),
           reports: createResearchReportRepository(tx),
+          reportVerifications: createResearchReportVerificationRepository(tx),
           events: createEventStore(tx),
         });
       });

@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import {
   createCaptureOwnerEvidence,
   createCapturePublicEvidence,
@@ -13,6 +14,7 @@ import {
   createEvidenceRepository,
   createMissionRepository,
   createResearchReportRepository,
+  createResearchReportVerificationRepository,
   createTaskRepository,
   createUnitOfWork,
 } from "@pios/database";
@@ -33,6 +35,7 @@ describe.skipIf(!process.env.DATABASE_URL)("apps/api mission routes (real Postgr
     const eventStore = createEventStore(db.db);
     const evidenceRepository = createEvidenceRepository(db.db);
     const researchReportRepository = createResearchReportRepository(db.db);
+    const researchReportVerificationRepository = createResearchReportVerificationRepository(db.db);
     const createMission = createCreateMission(unitOfWork);
     const captureOwnerEvidence = createCaptureOwnerEvidence(unitOfWork);
     const capturePublicEvidence = createCapturePublicEvidence(unitOfWork);
@@ -55,6 +58,7 @@ describe.skipIf(!process.env.DATABASE_URL)("apps/api mission routes (real Postgr
       taskRepository,
       evidenceRepository,
       researchReportRepository,
+      researchReportVerificationRepository,
       eventStore,
       eventBus,
     });
@@ -68,6 +72,22 @@ describe.skipIf(!process.env.DATABASE_URL)("apps/api mission routes (real Postgr
       },
     };
   }
+
+  it("POST /missions/:id/reports/:reportId/verify безопасно недоступен без strict verifier config", async () => {
+    const { app, teardown } = await setup();
+    try {
+      const mission = await app.inject({ method: "POST", url: "/missions", payload: { rawRequest: "Исследуй рынок" } });
+      const response = await app.inject({
+        method: "POST",
+        url: `/missions/${mission.json().mission.id as string}/reports/${randomUUID()}/verify`,
+        payload: {},
+      });
+      expect(response.statusCode).toBe(503);
+      expect(response.json().error).toBe("verifier_not_configured");
+    } finally {
+      await teardown();
+    }
+  });
 
   it("POST /missions/:id/reports/generate безопасно недоступен без server-side model config", async () => {
     const { app, teardown } = await setup();

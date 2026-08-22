@@ -16,6 +16,10 @@ import type {
   MissionDto,
   PlanResearchMissionRequest,
   ResearchReportDto,
+  ListResearchReportVerificationsResponse,
+  ResearchReportVerificationDto,
+  VerifyResearchReportRequest,
+  VerifyResearchReportResponse,
   UpdateMissionContractRequest,
 } from "@pios/contracts";
 
@@ -135,6 +139,29 @@ export async function listResearchReports(missionId: string): Promise<ResearchRe
   const response = await fetch(`${getApiUrl()}/missions/${missionId}/reports`, { cache: "no-store" });
   const data = await parseJsonOrThrow<ListResearchReportsResponse>(response);
   return data.reports;
+}
+
+export async function verifyResearchReport(
+  missionId: string,
+  reportId: string,
+  request: VerifyResearchReportRequest = {},
+): Promise<ResearchReportVerificationDto> {
+  const response = await fetch(`${getApiUrl()}/missions/${missionId}/reports/${reportId}/verify`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(request),
+  });
+  const data = await parseJsonOrThrow<VerifyResearchReportResponse>(response);
+  return data.verification;
+}
+
+export async function listResearchReportVerifications(
+  missionId: string,
+  reportId: string,
+): Promise<ResearchReportVerificationDto[]> {
+  const response = await fetch(`${getApiUrl()}/missions/${missionId}/reports/${reportId}/verifications`, { cache: "no-store" });
+  const data = await parseJsonOrThrow<ListResearchReportVerificationsResponse>(response);
+  return data.verifications;
 }
 
 export async function getMission(id: string): Promise<MissionDto> {
