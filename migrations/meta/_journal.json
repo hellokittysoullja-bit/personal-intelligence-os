@@ -57,6 +57,13 @@
       "when": 1787431082455,
       "tag": "0007_keen_rafael_vega",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1787434910160,
+      "tag": "0008_stormy_mister_fear",
+      "breakpoints": true
     }
   ]
 }

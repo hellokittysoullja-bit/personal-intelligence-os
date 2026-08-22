@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type {
+  ApprovalRepository,
   DomainEvent,
   DurableJob,
   DurableJobRepository,
@@ -47,6 +48,7 @@ function createFakeUnitOfWork() {
   const missions: Mission[] = [];
   const tasks: Task[] = [];
   const evidence: Evidence[] = [];
+  const approvals: import("@pios/domain").ApprovalRequest[] = [];
   const durableJobs: DurableJob[] = [];
   const memories: MemoryRecord[] = [];
   const reports: ResearchReport[] = [];
@@ -96,6 +98,18 @@ function createFakeUnitOfWork() {
     async listByMission(missionId) {
       return evidence.filter((item) => item.missionId === missionId);
     },
+  };
+
+  const approvalRepository: ApprovalRepository = {
+    async create(request) { approvals.push(request); },
+    async getById(requestId) { return approvals.find((request) => request.id === requestId) ?? null; },
+    async update(request, expectedStatus) {
+      const index = approvals.findIndex((item) => item.id === request.id && item.status === expectedStatus);
+      if (index < 0) return false;
+      approvals[index] = request;
+      return true;
+    },
+    async listPendingByOwner(ownerId) { return approvals.filter((request) => request.ownerId === ownerId && request.status === "pending"); },
   };
 
   const durableJobRepository: DurableJobRepository = {
@@ -167,7 +181,7 @@ function createFakeUnitOfWork() {
 
   const unitOfWork: UnitOfWork = {
     async run(fn) {
-      return fn({ goals: goalRepository, missions: missionRepository, tasks: taskRepository, evidence: evidenceRepository, durableJobs: durableJobRepository, memories: memoryRepository, reports: reportRepository, reportVerifications: reportVerificationRepository, events: eventStore });
+      return fn({ goals: goalRepository, missions: missionRepository, tasks: taskRepository, evidence: evidenceRepository, approvals: approvalRepository, durableJobs: durableJobRepository, memories: memoryRepository, reports: reportRepository, reportVerifications: reportVerificationRepository, events: eventStore });
     },
   };
 

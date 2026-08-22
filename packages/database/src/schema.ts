@@ -95,6 +95,27 @@ export const evidence = pgTable(
   (table) => [index("evidence_mission_id_created_at_idx").on(table.missionId, table.createdAt)],
 );
 
+/** Immutable owner approvals for L3/L4 external actions. Payload itself is not persisted here. */
+export const approvalRequests = pgTable(
+  "approval_requests",
+  {
+    id: uuid("id").primaryKey(),
+    ownerId: text("owner_id").notNull(),
+    missionId: uuid("mission_id").references(() => missions.id),
+    channel: text("channel").notNull(),
+    actionKind: text("action_kind").notNull(),
+    riskLevel: text("risk_level").notNull(),
+    preview: text("preview").notNull(),
+    payloadHash: text("payload_hash").notNull(),
+    status: text("status").notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+    decidedAt: timestamp("decided_at", { withTimezone: true }),
+    consumedAt: timestamp("consumed_at", { withTimezone: true }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => [index("approval_requests_owner_status_expires_at_idx").on(table.ownerId, table.status, table.expiresAt)],
+);
+
 /** Durable worker control-plane: lease/heartbeat хранятся в БД и переживают рестарт процесса. */
 export const durableJobs = pgTable(
   "durable_jobs",

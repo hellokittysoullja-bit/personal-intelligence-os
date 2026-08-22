@@ -103,6 +103,7 @@ export type {
   ResearchReportVerifiedPayload,
 } from "./event";
 export type {
+  ApprovalRepository,
   DurableJobRepository,
   EvidenceRepository,
   EventStore,

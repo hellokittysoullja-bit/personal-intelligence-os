@@ -1,3 +1,4 @@
+import type { ApprovalRequest } from "./approval";
 import type { DurableJob } from "./durable-job";
 import type { Evidence } from "./evidence";
 import type { DomainEvent } from "./event";
@@ -37,6 +38,13 @@ export interface TaskRepository {
 export interface EvidenceRepository {
   create(evidence: Evidence): Promise<void>;
   listByMission(missionId: string): Promise<Evidence[]>;
+}
+
+export interface ApprovalRepository {
+  create(request: ApprovalRequest): Promise<void>;
+  getById(requestId: string): Promise<ApprovalRequest | null>;
+  update(request: ApprovalRequest, expectedStatus: ApprovalRequest["status"]): Promise<boolean>;
+  listPendingByOwner(ownerId: string): Promise<ApprovalRequest[]>;
 }
 
 export interface DurableJobRepository {
@@ -82,6 +90,7 @@ export interface UnitOfWorkContext {
   missions: MissionRepository;
   tasks: TaskRepository;
   evidence: EvidenceRepository;
+  approvals: ApprovalRepository;
   durableJobs: DurableJobRepository;
   memories: MemoryRepository;
   reports: ResearchReportRepository;
