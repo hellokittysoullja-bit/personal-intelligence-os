@@ -2,7 +2,7 @@
 
 import type { EventDto, MissionDto, TaskDto } from "@pios/contracts";
 import Link from "next/link";
-import { use, useEffect, useState, type CSSProperties } from "react";
+import { use, useCallback, useEffect, useState, type CSSProperties } from "react";
 import { getMission, listTasks, subscribeToMissionEvents } from "../../../lib/api";
 
 const containerStyle: CSSProperties = {
@@ -13,67 +13,109 @@ const containerStyle: CSSProperties = {
   lineHeight: 1.6,
 };
 
+function formatMissionStatus(mission: MissionDto): string {
+  if (mission.status === "created" && mission.currentPhase === "intake") {
+    return "Создана — ожидает уточнения";
+  }
+  return mission.status;
+}
+
+function formatMissionPhase(mission: MissionDto): string {
+  if (mission.currentPhase === "intake") return "Сбор намерения";
+  return mission.currentPhase;
+}
+
 export default function MissionDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const [mission, setMission] = useState<MissionDto | null>(null);
   const [tasks, setTasks] = useState<TaskDto[]>([]);
   const [events, setEvents] = useState<EventDto[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  const load = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const [loadedMission, loadedTasks] = await Promise.all([getMission(id), listTasks(id)]);
+      setMission(loadedMission);
+      setTasks(loadedTasks);
+    } catch {
+      setError("Не удалось загрузить миссию. Проверьте подключение и повторите попытку.");
+    } finally {
+      setIsLoading(false);
+    }
+  }, [id]);
 
   useEffect(() => {
-    let cancelled = false;
-    async function load() {
-      try {
-        const [loadedMission, loadedTasks] = await Promise.all([getMission(id), listTasks(id)]);
-        if (!cancelled) {
-          setMission(loadedMission);
-          setTasks(loadedTasks);
-        }
-      } catch (err) {
-        if (!cancelled) setError(err instanceof Error ? err.message : String(err));
-      }
-    }
     void load();
-    return () => {
-      cancelled = true;
-    };
-  }, [id]);
+  }, [load]);
 
   // Realtime-таймлайн: события приходят по SSE (docs/ARCHITECTURE.md §12).
   useEffect(() => {
     const unsubscribe = subscribeToMissionEvents(id, (event) => {
       setEvents((previous) =>
-        previous.some((e) => e.eventId === event.eventId) ? previous : [...previous, event],
+        previous.some((existingEvent) => existingEvent.eventId === event.eventId)
+          ? previous
+          : [...previous, event],
       );
     });
     return unsubscribe;
   }, [id]);
 
-  if (error) {
-    return (
-      <main style={containerStyle}>
-        <Link href="/">← к списку миссий</Link>
-        <p style={{ color: "crimson" }}>Ошибка: {error}</p>
-      </main>
-    );
-  }
-
   return (
     <main style={containerStyle}>
       <Link href="/">← к списку миссий</Link>
 
-      {!mission && <p>Загрузка...</p>}
+      {error && (
+        <section role="alert" aria-live="assertive" style={{ color: "#9f1239", marginTop: "1rem" }}>
+          <p>{error}</p>
+          <button type="button" onClick={() => void load()} disabled={isLoading}>
+            {isLoading ? "Повторяем..." : "Повторить загрузку"}
+          </button>
+        </section>
+      )}
+
+      {isLoading && !mission && <p role="status">Загружаем миссию...</p>}
 
       {mission && (
         <>
           <h1>{mission.title}</h1>
           <p>{mission.objective}</p>
 
+          <section aria-labelledby="mission-next-step" style={{ borderLeft: "4px solid #2563eb", paddingLeft: "1rem", margin: "1.5rem 0" }}>
+            <h2 id="mission-next-step" style={{ margin: 0 }}>Следующий шаг</h2>
+            <p>
+              Намерение сохранено. В этом выпуске система не строит план и не выполняет действия автоматически.
+              Следующая версия добавит явный контракт миссии и подтверждение владельца до любого запуска.
+            </p>
+          </section>
+
+          <section aria-labelledby="mission-contract" style={{ margin: "1.5rem 0" }}>
+            <h2 id="mission-contract">Черновик контракта миссии</h2>
+            <p style={{ opacity: 0.8 }}>
+              Это сохранённые исходные ограничения, а не разрешение на автоматические действия.
+              Перед запуском будущих инструментов они должны быть явно подтверждены владельцем.
+            </p>
+            <dl style={{ display: "grid", gridTemplateColumns: "auto 1fr", gap: "0.25rem 1rem" }}>
+              <dt style={{ opacity: 0.7 }}>Автономность</dt>
+              <dd>{mission.autonomyLevel === "supervised" ? "Под наблюдением владельца" : mission.autonomyLevel}</dd>
+              <dt style={{ opacity: 0.7 }}>Риск</dt>
+              <dd>{mission.riskLevel}</dd>
+              <dt style={{ opacity: 0.7 }}>Лимит расходов</dt>
+              <dd>до ${mission.budget.maxEstimatedCostUsd.toFixed(2)}</dd>
+              <dt style={{ opacity: 0.7 }}>Вызовы модели / инструментов</dt>
+              <dd>до {mission.budget.maxModelCalls} / {mission.budget.maxToolCalls}</dd>
+              <dt style={{ opacity: 0.7 }}>Критерии успеха</dt>
+              <dd>{mission.successCriteria.length > 0 ? mission.successCriteria.join("; ") : "ещё не определены"}</dd>
+            </dl>
+          </section>
+
           <dl style={{ display: "grid", gridTemplateColumns: "auto 1fr", gap: "0.25rem 1rem" }}>
             <dt style={{ opacity: 0.7 }}>Статус</dt>
-            <dd>{mission.status}</dd>
+            <dd>{formatMissionStatus(mission)}</dd>
             <dt style={{ opacity: 0.7 }}>Фаза</dt>
-            <dd>{mission.currentPhase}</dd>
+            <dd>{formatMissionPhase(mission)}</dd>
             <dt style={{ opacity: 0.7 }}>Уровень риска</dt>
             <dd>{mission.riskLevel}</dd>
             <dt style={{ opacity: 0.7 }}>Создана</dt>
@@ -83,7 +125,7 @@ export default function MissionDetailPage({ params }: { params: Promise<{ id: st
           <h2>Задачи</h2>
           {tasks.length === 0 ? (
             <p style={{ opacity: 0.7 }}>
-              Пока пусто — планировщик появится в Milestone 4.
+              Задач пока нет: планировщик ещё не включён.
             </p>
           ) : (
             <ul>
@@ -95,9 +137,9 @@ export default function MissionDetailPage({ params }: { params: Promise<{ id: st
             </ul>
           )}
 
-          <h2>Таймлайн событий (live)</h2>
+          <h2>Таймлайн событий</h2>
           {events.length === 0 ? (
-            <p style={{ opacity: 0.7 }}>Ожидание событий...</p>
+            <p role="status" style={{ opacity: 0.7 }}>Ожидание событий...</p>
           ) : (
             <ul style={{ listStyle: "none", padding: 0, fontFamily: "monospace", fontSize: "0.9rem" }}>
               {events.map((event) => (

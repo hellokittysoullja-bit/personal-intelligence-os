@@ -46,15 +46,17 @@ describe.skipIf(!process.env.DATABASE_URL)("apps/api mission routes (real Postgr
     };
   }
 
-  it("POST /missions отклоняет пустой rawRequest", async () => {
+  it("POST /missions отклоняет пустой или пробельный rawRequest", async () => {
     const { app, teardown } = await setup();
     try {
-      const response = await app.inject({
-        method: "POST",
-        url: "/missions",
-        payload: { rawRequest: "" },
-      });
-      expect(response.statusCode).toBe(400);
+      for (const rawRequest of ["", "  \n\t "]) {
+        const response = await app.inject({
+          method: "POST",
+          url: "/missions",
+          payload: { rawRequest },
+        });
+        expect(response.statusCode).toBe(400);
+      }
     } finally {
       await teardown();
     }
@@ -99,6 +101,17 @@ describe.skipIf(!process.env.DATABASE_URL)("apps/api mission routes (real Postgr
       });
       expect(tasksResponse.statusCode).toBe(200);
       expect(tasksResponse.json().tasks).toEqual([]);
+    } finally {
+      await teardown();
+    }
+  });
+
+  it("GET /missions/:id отклоняет некорректный UUID до обращения к хранилищу", async () => {
+    const { app, teardown } = await setup();
+    try {
+      const response = await app.inject({ method: "GET", url: "/missions/not-a-uuid" });
+      expect(response.statusCode).toBe(400);
+      expect(response.json().error).toBe("invalid_path_params");
     } finally {
       await teardown();
     }

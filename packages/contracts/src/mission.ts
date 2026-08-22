@@ -10,7 +10,7 @@ export const missionDtoSchema = missionSchema;
 export type MissionDto = Mission;
 
 export const createMissionRequestSchema = z.object({
-  rawRequest: z.string().min(1, "rawRequest is required").max(4000),
+  rawRequest: z.string().trim().min(1, "rawRequest is required").max(4000),
 });
 export type CreateMissionRequest = z.infer<typeof createMissionRequestSchema>;
 

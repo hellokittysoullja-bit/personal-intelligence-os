@@ -1,3 +1,4 @@
+import { timingSafeEqual } from "node:crypto";
 import cors from "@fastify/cors";
 import type { CreateMission } from "@pios/application";
 import {
@@ -18,13 +19,18 @@ import {
 import type { EventStore, MissionRepository, TaskRepository } from "@pios/domain";
 import type { Logger } from "@pios/observability";
 import Fastify from "fastify";
-import { ZodError } from "zod";
+import { z, ZodError } from "zod";
+
+const missionParamsSchema = z.object({
+  id: z.string().uuid(),
+});
 
 export interface BuildServerOptions {
   logger: Logger;
   db: DatabaseClient;
   ownerId: string;
   webOrigin: string;
+  authToken?: string;
   createMission: CreateMission;
   missionRepository: MissionRepository;
   taskRepository: TaskRepository;
@@ -47,6 +53,7 @@ export function buildServer({
   db,
   ownerId,
   webOrigin,
+  authToken,
   createMission,
   missionRepository,
   taskRepository,
@@ -56,6 +63,19 @@ export function buildServer({
   const app = Fastify({ loggerInstance: logger });
 
   app.register(cors, { origin: webOrigin });
+
+  app.addHook("onRequest", async (request, reply) => {
+    if (!authToken || request.url.startsWith("/health/")) return;
+
+    const expected = Buffer.from(`Bearer ${authToken}`);
+    const received = Buffer.from(request.headers.authorization ?? "");
+    const authorized =
+      received.length === expected.length && timingSafeEqual(received, expected);
+
+    if (!authorized) {
+      reply.code(401).send({ error: "unauthorized" });
+    }
+  });
 
   app.get("/health/live", async () => {
     return healthResponseSchema.parse({
@@ -101,8 +121,12 @@ export function buildServer({
   });
 
   app.get("/missions/:id", async (request, reply) => {
-    const { id } = request.params as { id: string };
-    const mission = await missionRepository.getById(id);
+    const params = missionParamsSchema.safeParse(request.params);
+    if (!params.success) {
+      reply.code(400);
+      return { error: "invalid_path_params", details: params.error.flatten() };
+    }
+    const mission = await missionRepository.getById(params.data.id);
     if (!mission) {
       reply.code(404);
       return { error: "mission_not_found" };
@@ -111,24 +135,32 @@ export function buildServer({
   });
 
   app.get("/missions/:id/events", async (request, reply) => {
-    const { id } = request.params as { id: string };
-    const mission = await missionRepository.getById(id);
+    const params = missionParamsSchema.safeParse(request.params);
+    if (!params.success) {
+      reply.code(400);
+      return { error: "invalid_path_params", details: params.error.flatten() };
+    }
+    const mission = await missionRepository.getById(params.data.id);
     if (!mission) {
       reply.code(404);
       return { error: "mission_not_found" };
     }
-    const events = await eventStore.listByMission(id);
+    const events = await eventStore.listByMission(params.data.id);
     return listEventsResponseSchema.parse({ events });
   });
 
   app.get("/missions/:id/tasks", async (request, reply) => {
-    const { id } = request.params as { id: string };
-    const mission = await missionRepository.getById(id);
+    const params = missionParamsSchema.safeParse(request.params);
+    if (!params.success) {
+      reply.code(400);
+      return { error: "invalid_path_params", details: params.error.flatten() };
+    }
+    const mission = await missionRepository.getById(params.data.id);
     if (!mission) {
       reply.code(404);
       return { error: "mission_not_found" };
     }
-    const tasks = await taskRepository.listByMission(id);
+    const tasks = await taskRepository.listByMission(params.data.id);
     return listTasksResponseSchema.parse({ tasks });
   });
 
@@ -139,7 +171,12 @@ export function buildServer({
    * WebSocket, пока нет клиент→сервер realtime-взаимодействия).
    */
   app.get("/missions/:id/events/stream", async (request, reply) => {
-    const { id: missionId } = request.params as { id: string };
+    const params = missionParamsSchema.safeParse(request.params);
+    if (!params.success) {
+      reply.code(400);
+      return { error: "invalid_path_params", details: params.error.flatten() };
+    }
+    const missionId = params.data.id;
     const mission = await missionRepository.getById(missionId);
     if (!mission) {
       reply.code(404);

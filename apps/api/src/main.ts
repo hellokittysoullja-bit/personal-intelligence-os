@@ -38,6 +38,7 @@ async function main(): Promise<void> {
     db,
     ownerId: env.OWNER_ID,
     webOrigin: env.WEB_ORIGIN,
+    authToken: env.API_AUTH_TOKEN,
     createMission,
     missionRepository,
     taskRepository,

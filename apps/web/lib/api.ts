@@ -8,7 +8,7 @@ import type {
 } from "@pios/contracts";
 
 export function getApiUrl(): string {
-  return process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001";
+  return "/api/pios";
 }
 
 async function parseJsonOrThrow<T>(response: Response): Promise<T> {

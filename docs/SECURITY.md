@@ -108,6 +108,12 @@ Node.js-процессе, что и весь остальной код `apps/wor
   `contextPolicy`, если задача действительно этого требует, и с
   классификацией такого действия не ниже L2.
 
+## 5.1. Production-доступ к single-owner инстансу
+
+До появления multi-user identity provider система работает как single-owner инстанс. В production API не запускается без `API_AUTH_TOKEN` длиной не менее 32 символов. Внешний web-интерфейс передаёт этот токен только через server-side proxy (`PIOS_API_TOKEN`); токен **никогда** не добавляется в `NEXT_PUBLIC_*` или браузерный JavaScript.
+
+Owner-facing web-интерфейс дополнительно требует HTTP Basic credentials (`PIOS_WEB_USERNAME`, `PIOS_WEB_PASSWORD`) через middleware. Health endpoints остаются доступны без bearer-токена для оркестратора инфраструктуры. Это базовая защита раздельно развёрнутого single-owner приложения, а не замена будущей identity/authorization модели: до multi-user режима нельзя объявлять owner-scoping завершённым.
+
 ## 6. Sandbox / Terminal / Filesystem
 
 Первая реализация:
