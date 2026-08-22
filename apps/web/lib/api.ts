@@ -26,6 +26,10 @@ import type {
   VerifyResearchReportRequest,
   VerifyResearchReportResponse,
   UpdateMissionContractRequest,
+  ApprovalDto,
+  ApprovalResponse,
+  DecideApprovalRequest,
+  ListApprovalsResponse,
 } from "@pios/contracts";
 
 export function getApiUrl(): string {
@@ -38,6 +42,22 @@ async function parseJsonOrThrow<T>(response: Response): Promise<T> {
     throw new Error(`API ${response.status}: ${body}`);
   }
   return (await response.json()) as T;
+}
+
+export async function listApprovals(): Promise<ApprovalDto[]> {
+  const response = await fetch(`${getApiUrl()}/approvals`, { cache: "no-store" });
+  const data = await parseJsonOrThrow<ListApprovalsResponse>(response);
+  return data.approvals;
+}
+
+export async function decideApproval(approvalId: string, request: DecideApprovalRequest): Promise<ApprovalDto> {
+  const response = await fetch(`${getApiUrl()}/approvals/${approvalId}/decision`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(request),
+  });
+  const data = await parseJsonOrThrow<ApprovalResponse>(response);
+  return data.approval;
 }
 
 export async function listMemories(includeForgotten = false): Promise<MemoryDto[]> {

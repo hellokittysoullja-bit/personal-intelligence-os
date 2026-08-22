@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useEffect, useState, type FormEvent } from "react";
 import { createMission, listMissions } from "../lib/api";
 import { MemoryEditor } from "./memory-editor";
+import { ApprovalEditor } from "./approval-editor";
 
 const containerStyle = {
   fontFamily: "system-ui, sans-serif",
@@ -135,6 +136,7 @@ export default function HomePage() {
       )}
 
       <MemoryEditor />
+      <ApprovalEditor />
     </main>
   );
 }
