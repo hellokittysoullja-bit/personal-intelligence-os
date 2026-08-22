@@ -37,6 +37,7 @@ export {
   createMissionContractUpdatedEvent,
   createMissionCreatedEvent,
   createMissionResearchPlannedEvent,
+  createResearchEvidenceCapturedEvent,
   domainEventSchema,
 } from "./event";
 export type {
@@ -44,6 +45,7 @@ export type {
   MissionContractPayload,
   MissionCreatedPayload,
   MissionResearchPlannedPayload,
+  ResearchEvidenceCapturedPayload,
 } from "./event";
 export type {
   EvidenceRepository,

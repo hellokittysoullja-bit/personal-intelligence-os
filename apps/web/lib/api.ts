@@ -1,9 +1,13 @@
 import type {
+  CaptureOwnerEvidenceRequest,
+  CaptureOwnerEvidenceResponse,
   ConfirmMissionContractRequest,
   CreateMissionResponse,
   EventDto,
   GetMissionResponse,
+  ListEvidenceResponse,
   ListMissionsResponse,
+  EvidenceDto,
   ListTasksResponse,
   MissionDto,
   PlanResearchMissionRequest,
@@ -75,6 +79,25 @@ export async function planResearchMission(
   });
   const data = await parseJsonOrThrow<CreateMissionResponse>(response);
   return data.mission;
+}
+
+export async function captureOwnerEvidence(
+  missionId: string,
+  evidence: CaptureOwnerEvidenceRequest,
+): Promise<EvidenceDto> {
+  const response = await fetch(`${getApiUrl()}/missions/${missionId}/evidence`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(evidence),
+  });
+  const data = await parseJsonOrThrow<CaptureOwnerEvidenceResponse>(response);
+  return data.evidence;
+}
+
+export async function listEvidence(missionId: string): Promise<EvidenceDto[]> {
+  const response = await fetch(`${getApiUrl()}/missions/${missionId}/evidence`, { cache: "no-store" });
+  const data = await parseJsonOrThrow<ListEvidenceResponse>(response);
+  return data.evidence;
 }
 
 export async function getMission(id: string): Promise<MissionDto> {

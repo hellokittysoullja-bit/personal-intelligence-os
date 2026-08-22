@@ -222,3 +222,29 @@ describe("PlanResearchMission", () => {
     expect(events.at(-1)?.eventType).toBe("MissionResearchPlanned");
   });
 });
+
+
+describe("CaptureOwnerEvidence", () => {
+  it("сохраняет owner-provided evidence только в планируемой research миссии", async () => {
+    const { unitOfWork, evidence, events } = createFakeUnitOfWork();
+    const created = await createCreateMission(unitOfWork)({ ownerId: "owner-1", rawRequest: "Исследуй рынок" });
+    const updated = await createUpdateMissionContract(unitOfWork)({
+      missionId: created.mission.id, ownerId: "owner-1", expectedVersion: created.mission.version,
+      objective: "Исследовать рынок", autonomyLevel: "supervised", riskLevel: "L1", budget: created.mission.budget,
+      successCriteria: ["Есть источник"], constraints: [], unknowns: [], assumptions: [], stopConditions: [],
+    });
+    const confirmed = await createConfirmMissionContract(unitOfWork)({ missionId: updated.mission.id, ownerId: "owner-1", expectedVersion: updated.mission.version });
+    await createPlanResearchMission(unitOfWork)({ missionId: confirmed.mission.id, ownerId: "owner-1", expectedVersion: confirmed.mission.version });
+
+    const { createCaptureOwnerEvidence } = await import("./capture-owner-evidence");
+    const result = await createCaptureOwnerEvidence(unitOfWork)({
+      missionId: created.mission.id, ownerId: "owner-1", sourceUrl: "https://example.com/source",
+      title: "Проверенный источник", excerpt: "Проверяемый фрагмент источника", confidence: 0.8,
+    });
+
+    expect(evidence).toHaveLength(1);
+    expect(result.evidence.contentHash).toHaveLength(64);
+    expect(result.evidence.provenance.collector).toBe("owner_provided");
+    expect(events.at(-1)?.eventType).toBe("ResearchEvidenceCaptured");
+  });
+});

@@ -14,7 +14,7 @@ export const evidenceSchema = z.object({
   retrievedAt: z.string().datetime(),
   contentHash: z.string().regex(/^[a-f0-9]{64}$/),
   provenance: z.object({
-    collector: z.literal("http_read_only"),
+    collector: z.enum(["owner_provided", "http_read_only"]),
     contentType: z.string().max(200),
   }),
   confidence: z.number().min(0).max(1),

@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import type { Evidence } from "./evidence";
 import type { Mission } from "./mission";
 import { z } from "zod";
 
@@ -124,6 +125,35 @@ export interface MissionResearchPlannedPayload {
   version: number;
   taskIds: string[];
   mode: "read_only";
+}
+
+export interface ResearchEvidenceCapturedPayload {
+  evidenceId: string;
+  sourceUrl: string;
+  contentHash: string;
+  collector: Evidence["provenance"]["collector"];
+}
+
+export function createResearchEvidenceCapturedEvent(evidence: Evidence, traceId?: string): DomainEvent {
+  return {
+    eventId: randomUUID(),
+    eventType: "ResearchEvidenceCaptured",
+    timestamp: new Date().toISOString(),
+    ownerId: evidence.ownerId,
+    missionId: evidence.missionId,
+    taskId: null,
+    agentJobId: null,
+    traceId: traceId ?? randomUUID(),
+    causationId: null,
+    correlationId: evidence.missionId,
+    payload: {
+      evidenceId: evidence.id,
+      sourceUrl: evidence.sourceUrl,
+      contentHash: evidence.contentHash,
+      collector: evidence.provenance.collector,
+    } satisfies ResearchEvidenceCapturedPayload,
+    schemaVersion: 1,
+  };
 }
 
 export function createMissionResearchPlannedEvent(

@@ -1,12 +1,15 @@
 import {
+  createCaptureOwnerEvidence,
   createConfirmMissionContract,
   createCreateMission,
+  createPlanResearchMission,
   createUpdateMissionContract,
 } from "@pios/application";
 import {
   createDatabaseClient,
   createEventBus,
   createEventStore,
+  createEvidenceRepository,
   createMissionRepository,
   createTaskRepository,
   createUnitOfWork,
@@ -26,9 +29,12 @@ describe.skipIf(!process.env.DATABASE_URL)("apps/api mission routes (real Postgr
     const missionRepository = createMissionRepository(db.db);
     const taskRepository = createTaskRepository(db.db);
     const eventStore = createEventStore(db.db);
+    const evidenceRepository = createEvidenceRepository(db.db);
     const createMission = createCreateMission(unitOfWork);
+    const captureOwnerEvidence = createCaptureOwnerEvidence(unitOfWork);
     const updateMissionContract = createUpdateMissionContract(unitOfWork);
     const confirmMissionContract = createConfirmMissionContract(unitOfWork);
+    const planResearchMission = createPlanResearchMission(unitOfWork);
 
     const app = buildServer({
       logger,
@@ -36,10 +42,13 @@ describe.skipIf(!process.env.DATABASE_URL)("apps/api mission routes (real Postgr
       ownerId: `test-owner-${Date.now()}`,
       webOrigin: "http://localhost:3000",
       createMission,
+      captureOwnerEvidence,
       updateMissionContract,
       confirmMissionContract,
+      planResearchMission,
       missionRepository,
       taskRepository,
+      evidenceRepository,
       eventStore,
       eventBus,
     });

@@ -22,6 +22,19 @@ export type {
   UpdateMissionContractRequest,
 } from "./mission";
 
+export {
+  captureOwnerEvidenceRequestSchema,
+  captureOwnerEvidenceResponseSchema,
+  evidenceDtoSchema,
+  listEvidenceResponseSchema,
+} from "./evidence";
+export type {
+  CaptureOwnerEvidenceRequest,
+  CaptureOwnerEvidenceResponse,
+  EvidenceDto,
+  ListEvidenceResponse,
+} from "./evidence";
+
 export { eventDtoSchema, listEventsResponseSchema } from "./event";
 export type { EventDto, ListEventsResponse } from "./event";
 

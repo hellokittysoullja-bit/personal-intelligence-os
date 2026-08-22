@@ -1,12 +1,15 @@
 import { timingSafeEqual } from "node:crypto";
 import cors from "@fastify/cors";
 import type {
+  CaptureOwnerEvidence,
   ConfirmMissionContract,
   CreateMission,
   PlanResearchMission,
   UpdateMissionContract,
 } from "@pios/application";
 import {
+  captureOwnerEvidenceRequestSchema,
+  captureOwnerEvidenceResponseSchema,
   confirmMissionContractRequestSchema,
   createMissionRequestSchema,
   createMissionResponseSchema,
@@ -14,6 +17,7 @@ import {
   getMissionResponseSchema,
   healthResponseSchema,
   listEventsResponseSchema,
+  listEvidenceResponseSchema,
   listMissionsResponseSchema,
   listTasksResponseSchema,
   planResearchMissionRequestSchema,
@@ -24,7 +28,13 @@ import {
   type DatabaseClient,
   type EventBus,
 } from "@pios/database";
-import { DomainError, type EventStore, type MissionRepository, type TaskRepository } from "@pios/domain";
+import {
+  DomainError,
+  type EvidenceRepository,
+  type EventStore,
+  type MissionRepository,
+  type TaskRepository,
+} from "@pios/domain";
 import type { Logger } from "@pios/observability";
 import Fastify from "fastify";
 import { z, ZodError } from "zod";
@@ -40,11 +50,13 @@ export interface BuildServerOptions {
   webOrigin: string;
   authToken?: string;
   createMission: CreateMission;
+  captureOwnerEvidence: CaptureOwnerEvidence;
   updateMissionContract: UpdateMissionContract;
   confirmMissionContract: ConfirmMissionContract;
   planResearchMission: PlanResearchMission;
   missionRepository: MissionRepository;
   taskRepository: TaskRepository;
+  evidenceRepository: EvidenceRepository;
   eventStore: EventStore;
   eventBus: EventBus;
 }
@@ -66,11 +78,13 @@ export function buildServer({
   webOrigin,
   authToken,
   createMission,
+  captureOwnerEvidence,
   updateMissionContract,
   confirmMissionContract,
   planResearchMission,
   missionRepository,
   taskRepository,
+  evidenceRepository,
   eventStore,
   eventBus,
 }: BuildServerOptions) {
@@ -195,6 +209,39 @@ export function buildServer({
       if (domainError) return domainError;
       throw error;
     }
+  });
+
+  app.post("/missions/:id/evidence", async (request, reply) => {
+    const params = missionParamsSchema.safeParse(request.params);
+    const body = captureOwnerEvidenceRequestSchema.safeParse(request.body);
+    if (!params.success || !body.success) {
+      reply.code(400);
+      return { error: "invalid_request" };
+    }
+    try {
+      const { evidence } = await captureOwnerEvidence({ ...body.data, missionId: params.data.id, ownerId });
+      reply.code(201);
+      return captureOwnerEvidenceResponseSchema.parse({ evidence });
+    } catch (error) {
+      const domainError = sendDomainError(error, reply);
+      if (domainError) return domainError;
+      throw error;
+    }
+  });
+
+  app.get("/missions/:id/evidence", async (request, reply) => {
+    const params = missionParamsSchema.safeParse(request.params);
+    if (!params.success) {
+      reply.code(400);
+      return { error: "invalid_path_params", details: params.error.flatten() };
+    }
+    const mission = await missionRepository.getById(params.data.id);
+    if (!mission || mission.ownerId !== ownerId) {
+      reply.code(404);
+      return { error: "mission_not_found" };
+    }
+    const evidence = await evidenceRepository.listByMission(params.data.id);
+    return listEvidenceResponseSchema.parse({ evidence });
   });
 
   app.get("/missions", async () => {

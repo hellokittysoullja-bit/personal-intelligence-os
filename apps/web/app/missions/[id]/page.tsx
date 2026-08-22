@@ -5,6 +5,7 @@ import Link from "next/link";
 import { use, useCallback, useEffect, useState, type CSSProperties } from "react";
 import { getMission, listTasks, subscribeToMissionEvents } from "../../../lib/api";
 import { ContractEditor } from "./contract-editor";
+import { EvidenceEditor } from "./evidence-editor";
 
 const containerStyle: CSSProperties = {
   fontFamily: "system-ui, sans-serif",
@@ -107,7 +108,7 @@ export default function MissionDetailPage({ params }: { params: Promise<{ id: st
           <h2>Задачи</h2>
           {tasks.length === 0 ? (
             <p style={{ opacity: 0.7 }}>
-              Задач пока нет: планировщик ещё не включён.
+              Задач пока нет: подтвердите контракт и создайте read-only план исследования.
             </p>
           ) : (
             <ul>
@@ -118,6 +119,8 @@ export default function MissionDetailPage({ params }: { params: Promise<{ id: st
               ))}
             </ul>
           )}
+
+          <EvidenceEditor mission={mission} />
 
           <h2>Таймлайн событий</h2>
           {events.length === 0 ? (
