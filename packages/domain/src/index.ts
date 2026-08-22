@@ -31,6 +31,8 @@ export {
 } from "./task";
 export type { Task, TaskStatus } from "./task";
 export { evidenceSchema } from "./evidence";
+export { approvalRequestSchema, approvalRiskLevelSchema, approvalStatusSchema, consumeApproval, decideApproval } from "./approval";
+export type { ApprovalRequest, ApprovalRiskLevel, ApprovalStatus } from "./approval";
 export { blockForRecovery, durableJobSchema, durableJobStatusSchema, durableJobTypeSchema } from "./durable-job";
 export type { DurableJob, DurableJobStatus, DurableJobType } from "./durable-job";
 export type { Evidence } from "./evidence";
