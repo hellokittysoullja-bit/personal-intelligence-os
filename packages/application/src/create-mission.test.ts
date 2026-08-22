@@ -9,6 +9,10 @@ import type {
 } from "@pios/domain";
 import { describe, expect, it } from "vitest";
 import { createCreateMission } from "./create-mission";
+import {
+  createConfirmMissionContract,
+  createUpdateMissionContract,
+} from "./mission-contract";
 
 function createFakeUnitOfWork() {
   const goals: Goal[] = [];
@@ -33,6 +37,12 @@ function createFakeUnitOfWork() {
     },
     async list(ownerId) {
       return missions.filter((m) => m.ownerId === ownerId);
+    },
+    async update(mission, expectedVersion) {
+      const index = missions.findIndex((stored) => stored.id === mission.id);
+      if (index < 0 || missions[index]?.version !== expectedVersion) return false;
+      missions[index] = mission;
+      return true;
     },
   };
 
@@ -98,5 +108,48 @@ describe("CreateMission", () => {
 
     expect(result.mission.budget.maxConcurrentAgentJobs).toBeGreaterThan(0);
     expect(result.mission.budget.maxAgentJobDepth).toBeGreaterThanOrEqual(0);
+  });
+});
+
+
+describe("MissionContract", () => {
+  it("сохраняет контракт и подтверждает его без запуска инструментов", async () => {
+    const { unitOfWork, events } = createFakeUnitOfWork();
+    const createMission = createCreateMission(unitOfWork);
+    const updateContract = createUpdateMissionContract(unitOfWork);
+    const confirmContract = createConfirmMissionContract(unitOfWork);
+    const created = await createMission({ ownerId: "owner-1", rawRequest: "Собери отчёт" });
+
+    const updated = await updateContract({
+      missionId: created.mission.id,
+      ownerId: "owner-1",
+      expectedVersion: created.mission.version,
+      objective: "Собрать еженедельный отчёт по продажам",
+      autonomyLevel: "supervised",
+      riskLevel: "L1",
+      budget: created.mission.budget,
+      successCriteria: ["Отчёт содержит выручку и динамику за неделю"],
+      constraints: ["Не выполнять внешние действия"],
+      unknowns: [],
+      assumptions: [],
+      stopConditions: ["Остановиться при отсутствии данных"],
+    });
+    expect(updated.mission.currentPhase).toBe("contract");
+    expect(updated.mission.version).toBe(2);
+    expect(updated.event.eventType).toBe("MissionContractUpdated");
+
+    const confirmed = await confirmContract({
+      missionId: updated.mission.id,
+      ownerId: "owner-1",
+      expectedVersion: updated.mission.version,
+    });
+    expect(confirmed.mission.status).toBe("understanding");
+    expect(confirmed.mission.currentPhase).toBe("understand");
+    expect(confirmed.event.eventType).toBe("MissionContractConfirmed");
+    expect(events.map((event) => event.eventType)).toEqual([
+      "MissionCreated",
+      "MissionContractUpdated",
+      "MissionContractConfirmed",
+    ]);
   });
 });

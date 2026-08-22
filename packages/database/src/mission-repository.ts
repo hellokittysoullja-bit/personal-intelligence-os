@@ -6,7 +6,7 @@ import type {
   MissionStatus,
 } from "@pios/domain";
 import type { ActionRiskLevel } from "@pios/domain";
-import { desc, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import type { Executor } from "./client";
 import { missions } from "./schema";
 
@@ -70,6 +70,30 @@ export function createMissionRepository(executor: Executor): MissionRepository {
         .where(eq(missions.ownerId, ownerId))
         .orderBy(desc(missions.createdAt));
       return rows.map(toDomain);
+    },
+    async update(mission, expectedVersion) {
+      const updated = await executor
+        .update(missions)
+        .set({
+          title: mission.title,
+          objective: mission.objective,
+          status: mission.status,
+          currentPhase: mission.currentPhase,
+          autonomyLevel: mission.autonomyLevel,
+          riskLevel: mission.riskLevel,
+          budget: mission.budget,
+          successCriteria: mission.successCriteria,
+          constraints: mission.constraints,
+          unknowns: mission.unknowns,
+          assumptions: mission.assumptions,
+          stopConditions: mission.stopConditions,
+          startedAt: mission.startedAt ? new Date(mission.startedAt) : null,
+          completedAt: mission.completedAt ? new Date(mission.completedAt) : null,
+          version: mission.version,
+        })
+        .where(and(eq(missions.id, mission.id), eq(missions.version, expectedVersion)))
+        .returning({ id: missions.id });
+      return updated.length === 1;
     },
   };
 }

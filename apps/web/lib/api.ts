@@ -1,10 +1,12 @@
 import type {
+  ConfirmMissionContractRequest,
   CreateMissionResponse,
   EventDto,
   GetMissionResponse,
   ListMissionsResponse,
   ListTasksResponse,
   MissionDto,
+  UpdateMissionContractRequest,
 } from "@pios/contracts";
 
 export function getApiUrl(): string {
@@ -30,6 +32,32 @@ export async function createMission(rawRequest: string): Promise<MissionDto> {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ rawRequest }),
+  });
+  const data = await parseJsonOrThrow<CreateMissionResponse>(response);
+  return data.mission;
+}
+
+export async function updateMissionContract(
+  missionId: string,
+  contract: UpdateMissionContractRequest,
+): Promise<MissionDto> {
+  const response = await fetch(`${getApiUrl()}/missions/${missionId}/contract`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(contract),
+  });
+  const data = await parseJsonOrThrow<CreateMissionResponse>(response);
+  return data.mission;
+}
+
+export async function confirmMissionContract(
+  missionId: string,
+  request: ConfirmMissionContractRequest,
+): Promise<MissionDto> {
+  const response = await fetch(`${getApiUrl()}/missions/${missionId}/contract/confirm`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(request),
   });
   const data = await parseJsonOrThrow<CreateMissionResponse>(response);
   return data.mission;

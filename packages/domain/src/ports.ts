@@ -17,6 +17,11 @@ export interface MissionRepository {
   create(mission: Mission): Promise<void>;
   getById(id: string): Promise<Mission | null>;
   list(ownerId: string): Promise<Mission[]>;
+  /**
+   * Атомарно обновляет Mission только при совпадении версии. Возвращает false,
+   * если другой запрос уже изменил запись или её больше нет.
+   */
+  update(mission: Mission, expectedVersion: number): Promise<boolean>;
 }
 
 export interface TaskRepository {

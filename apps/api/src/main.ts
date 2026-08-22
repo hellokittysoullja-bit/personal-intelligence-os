@@ -1,5 +1,9 @@
 import path from "node:path";
-import { createCreateMission } from "@pios/application";
+import {
+  createConfirmMissionContract,
+  createCreateMission,
+  createUpdateMissionContract,
+} from "@pios/application";
 import {
   createDatabaseClient,
   createEventBus,
@@ -32,6 +36,8 @@ async function main(): Promise<void> {
   const taskRepository = createTaskRepository(db.db);
   const eventStore = createEventStore(db.db);
   const createMission = createCreateMission(unitOfWork);
+  const updateMissionContract = createUpdateMissionContract(unitOfWork);
+  const confirmMissionContract = createConfirmMissionContract(unitOfWork);
 
   const app = buildServer({
     logger,
@@ -40,6 +46,8 @@ async function main(): Promise<void> {
     webOrigin: env.WEB_ORIGIN,
     authToken: env.API_AUTH_TOKEN,
     createMission,
+    updateMissionContract,
+    confirmMissionContract,
     missionRepository,
     taskRepository,
     eventStore,

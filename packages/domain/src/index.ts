@@ -30,8 +30,13 @@ export {
   taskStatusSchema,
 } from "./task";
 export type { Task, TaskStatus } from "./task";
-export { createMissionCreatedEvent, domainEventSchema } from "./event";
-export type { DomainEvent, MissionCreatedPayload } from "./event";
+export {
+  createMissionContractConfirmedEvent,
+  createMissionContractUpdatedEvent,
+  createMissionCreatedEvent,
+  domainEventSchema,
+} from "./event";
+export type { DomainEvent, MissionContractPayload, MissionCreatedPayload } from "./event";
 export type {
   EventStore,
   GoalRepository,

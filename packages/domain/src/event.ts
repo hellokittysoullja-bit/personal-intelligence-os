@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import type { Mission } from "./mission";
 import { z } from "zod";
 
 /**
@@ -33,6 +34,61 @@ export interface MissionCreatedPayload {
 }
 
 /** Единственный тип события, реально производимый в Milestone 2 (CreateMission). */
+export interface MissionContractPayload {
+  missionId: string;
+  version: number;
+  objective: string;
+  autonomyLevel: Mission["autonomyLevel"];
+  riskLevel: Mission["riskLevel"];
+  budget: Mission["budget"];
+  successCriteria: string[];
+  constraints: string[];
+  unknowns: string[];
+  assumptions: string[];
+  stopConditions: string[];
+}
+
+function createMissionContractEvent(
+  eventType: "MissionContractUpdated" | "MissionContractConfirmed",
+  mission: Mission,
+  traceId?: string,
+): DomainEvent {
+  return {
+    eventId: randomUUID(),
+    eventType,
+    timestamp: new Date().toISOString(),
+    ownerId: mission.ownerId,
+    missionId: mission.id,
+    taskId: null,
+    agentJobId: null,
+    traceId: traceId ?? randomUUID(),
+    causationId: null,
+    correlationId: mission.id,
+    payload: {
+      missionId: mission.id,
+      version: mission.version,
+      objective: mission.objective,
+      autonomyLevel: mission.autonomyLevel,
+      riskLevel: mission.riskLevel,
+      budget: mission.budget,
+      successCriteria: mission.successCriteria,
+      constraints: mission.constraints,
+      unknowns: mission.unknowns,
+      assumptions: mission.assumptions,
+      stopConditions: mission.stopConditions,
+    } satisfies MissionContractPayload,
+    schemaVersion: 1,
+  };
+}
+
+export function createMissionContractUpdatedEvent(mission: Mission, traceId?: string): DomainEvent {
+  return createMissionContractEvent("MissionContractUpdated", mission, traceId);
+}
+
+export function createMissionContractConfirmedEvent(mission: Mission, traceId?: string): DomainEvent {
+  return createMissionContractEvent("MissionContractConfirmed", mission, traceId);
+}
+
 export function createMissionCreatedEvent(params: {
   ownerId: string;
   missionId: string;

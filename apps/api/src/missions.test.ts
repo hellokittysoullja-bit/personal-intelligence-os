@@ -1,4 +1,8 @@
-import { createCreateMission } from "@pios/application";
+import {
+  createConfirmMissionContract,
+  createCreateMission,
+  createUpdateMissionContract,
+} from "@pios/application";
 import {
   createDatabaseClient,
   createEventBus,
@@ -23,6 +27,8 @@ describe.skipIf(!process.env.DATABASE_URL)("apps/api mission routes (real Postgr
     const taskRepository = createTaskRepository(db.db);
     const eventStore = createEventStore(db.db);
     const createMission = createCreateMission(unitOfWork);
+    const updateMissionContract = createUpdateMissionContract(unitOfWork);
+    const confirmMissionContract = createConfirmMissionContract(unitOfWork);
 
     const app = buildServer({
       logger,
@@ -30,6 +36,8 @@ describe.skipIf(!process.env.DATABASE_URL)("apps/api mission routes (real Postgr
       ownerId: `test-owner-${Date.now()}`,
       webOrigin: "http://localhost:3000",
       createMission,
+      updateMissionContract,
+      confirmMissionContract,
       missionRepository,
       taskRepository,
       eventStore,
@@ -101,6 +109,46 @@ describe.skipIf(!process.env.DATABASE_URL)("apps/api mission routes (real Postgr
       });
       expect(tasksResponse.statusCode).toBe(200);
       expect(tasksResponse.json().tasks).toEqual([]);
+    } finally {
+      await teardown();
+    }
+  });
+
+  it("сохраняет и подтверждает контракт без выполнения инструментов", async () => {
+    const { app, teardown } = await setup();
+    try {
+      const created = await app.inject({
+        method: "POST",
+        url: "/missions",
+        payload: { rawRequest: "Собери отчёт" },
+      });
+      const mission = created.json().mission;
+      const updated = await app.inject({
+        method: "PUT",
+        url: `/missions/${mission.id}/contract`,
+        payload: {
+          expectedVersion: mission.version,
+          objective: "Собрать еженедельный отчёт",
+          autonomyLevel: "supervised",
+          riskLevel: "L1",
+          budget: mission.budget,
+          successCriteria: ["Отчёт содержит выручку"],
+          constraints: [], unknowns: [], assumptions: [], stopConditions: [],
+        },
+      });
+      expect(updated.statusCode).toBe(200);
+      expect(updated.json().mission.currentPhase).toBe("contract");
+      const confirmed = await app.inject({
+        method: "POST",
+        url: `/missions/${mission.id}/contract/confirm`,
+        payload: { expectedVersion: updated.json().mission.version },
+      });
+      expect(confirmed.statusCode).toBe(200);
+      expect(confirmed.json().mission.status).toBe("understanding");
+      const events = await app.inject({ method: "GET", url: `/missions/${mission.id}/events` });
+      expect(events.json().events.map((event: { eventType: string }) => event.eventType)).toEqual([
+        "MissionCreated", "MissionContractUpdated", "MissionContractConfirmed",
+      ]);
     } finally {
       await teardown();
     }

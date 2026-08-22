@@ -1,7 +1,12 @@
 import { timingSafeEqual } from "node:crypto";
 import cors from "@fastify/cors";
-import type { CreateMission } from "@pios/application";
+import type {
+  ConfirmMissionContract,
+  CreateMission,
+  UpdateMissionContract,
+} from "@pios/application";
 import {
+  confirmMissionContractRequestSchema,
   createMissionRequestSchema,
   createMissionResponseSchema,
   eventDtoSchema,
@@ -10,13 +15,14 @@ import {
   listEventsResponseSchema,
   listMissionsResponseSchema,
   listTasksResponseSchema,
+  updateMissionContractRequestSchema,
 } from "@pios/contracts";
 import {
   pingDatabase,
   type DatabaseClient,
   type EventBus,
 } from "@pios/database";
-import type { EventStore, MissionRepository, TaskRepository } from "@pios/domain";
+import { DomainError, type EventStore, type MissionRepository, type TaskRepository } from "@pios/domain";
 import type { Logger } from "@pios/observability";
 import Fastify from "fastify";
 import { z, ZodError } from "zod";
@@ -32,6 +38,8 @@ export interface BuildServerOptions {
   webOrigin: string;
   authToken?: string;
   createMission: CreateMission;
+  updateMissionContract: UpdateMissionContract;
+  confirmMissionContract: ConfirmMissionContract;
   missionRepository: MissionRepository;
   taskRepository: TaskRepository;
   eventStore: EventStore;
@@ -55,6 +63,8 @@ export function buildServer({
   webOrigin,
   authToken,
   createMission,
+  updateMissionContract,
+  confirmMissionContract,
   missionRepository,
   taskRepository,
   eventStore,
@@ -113,6 +123,54 @@ export function buildServer({
     const { mission } = await createMission({ ownerId, rawRequest: body.rawRequest });
     reply.code(201);
     return createMissionResponseSchema.parse({ mission });
+  });
+
+  function sendDomainError(error: unknown, reply: { code(statusCode: number): unknown }) {
+    if (!(error instanceof DomainError)) return null;
+    const status = error.code === "MISSION_NOT_FOUND" ? 404 :
+      error.code === "MISSION_CONTRACT_INCOMPLETE" ? 422 : 409;
+    reply.code(status);
+    return { error: error.code.toLowerCase() };
+  }
+
+  app.put("/missions/:id/contract", async (request, reply) => {
+    const params = missionParamsSchema.safeParse(request.params);
+    const body = updateMissionContractRequestSchema.safeParse(request.body);
+    if (!params.success || !body.success) {
+      reply.code(400);
+      return {
+        error: "invalid_request",
+        details: { params: params.success ? undefined : params.error.flatten(), body: body.success ? undefined : body.error.flatten() },
+      };
+    }
+    try {
+      const { mission } = await updateMissionContract({ ...body.data, missionId: params.data.id, ownerId });
+      return createMissionResponseSchema.parse({ mission });
+    } catch (error) {
+      const domainError = sendDomainError(error, reply);
+      if (domainError) return domainError;
+      throw error;
+    }
+  });
+
+  app.post("/missions/:id/contract/confirm", async (request, reply) => {
+    const params = missionParamsSchema.safeParse(request.params);
+    const body = confirmMissionContractRequestSchema.safeParse(request.body);
+    if (!params.success || !body.success) {
+      reply.code(400);
+      return {
+        error: "invalid_request",
+        details: { params: params.success ? undefined : params.error.flatten(), body: body.success ? undefined : body.error.flatten() },
+      };
+    }
+    try {
+      const { mission } = await confirmMissionContract({ ...body.data, missionId: params.data.id, ownerId });
+      return createMissionResponseSchema.parse({ mission });
+    } catch (error) {
+      const domainError = sendDomainError(error, reply);
+      if (domainError) return domainError;
+      throw error;
+    }
   });
 
   app.get("/missions", async () => {

@@ -4,6 +4,7 @@ import type { EventDto, MissionDto, TaskDto } from "@pios/contracts";
 import Link from "next/link";
 import { use, useCallback, useEffect, useState, type CSSProperties } from "react";
 import { getMission, listTasks, subscribeToMissionEvents } from "../../../lib/api";
+import { ContractEditor } from "./contract-editor";
 
 const containerStyle: CSSProperties = {
   fontFamily: "system-ui, sans-serif",
@@ -86,30 +87,11 @@ export default function MissionDetailPage({ params }: { params: Promise<{ id: st
           <section aria-labelledby="mission-next-step" style={{ borderLeft: "4px solid #2563eb", paddingLeft: "1rem", margin: "1.5rem 0" }}>
             <h2 id="mission-next-step" style={{ margin: 0 }}>Следующий шаг</h2>
             <p>
-              Намерение сохранено. В этом выпуске система не строит план и не выполняет действия автоматически.
-              Следующая версия добавит явный контракт миссии и подтверждение владельца до любого запуска.
+              Сначала заполните и сохраните контракт. Затем его нужно явно подтвердить; ни одно из этих действий не запускает планирование, инструменты или внешние операции.
             </p>
           </section>
 
-          <section aria-labelledby="mission-contract" style={{ margin: "1.5rem 0" }}>
-            <h2 id="mission-contract">Черновик контракта миссии</h2>
-            <p style={{ opacity: 0.8 }}>
-              Это сохранённые исходные ограничения, а не разрешение на автоматические действия.
-              Перед запуском будущих инструментов они должны быть явно подтверждены владельцем.
-            </p>
-            <dl style={{ display: "grid", gridTemplateColumns: "auto 1fr", gap: "0.25rem 1rem" }}>
-              <dt style={{ opacity: 0.7 }}>Автономность</dt>
-              <dd>{mission.autonomyLevel === "supervised" ? "Под наблюдением владельца" : mission.autonomyLevel}</dd>
-              <dt style={{ opacity: 0.7 }}>Риск</dt>
-              <dd>{mission.riskLevel}</dd>
-              <dt style={{ opacity: 0.7 }}>Лимит расходов</dt>
-              <dd>до ${mission.budget.maxEstimatedCostUsd.toFixed(2)}</dd>
-              <dt style={{ opacity: 0.7 }}>Вызовы модели / инструментов</dt>
-              <dd>до {mission.budget.maxModelCalls} / {mission.budget.maxToolCalls}</dd>
-              <dt style={{ opacity: 0.7 }}>Критерии успеха</dt>
-              <dd>{mission.successCriteria.length > 0 ? mission.successCriteria.join("; ") : "ещё не определены"}</dd>
-            </dl>
-          </section>
+          <ContractEditor mission={mission} onMissionChanged={setMission} />
 
           <dl style={{ display: "grid", gridTemplateColumns: "auto 1fr", gap: "0.25rem 1rem" }}>
             <dt style={{ opacity: 0.7 }}>Статус</dt>
